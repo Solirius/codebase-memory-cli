@@ -5,11 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { NodeDetailPanel } from "./NodeDetailPanel";
 import type { GraphNode, RepoInfo } from "../lib/types";
 
-/* Mock the RPC layer so "Show code" resolves without a backend. */
-const callToolMock = vi.fn();
-vi.mock("../api/rpc", () => ({
-  callTool: (...args: unknown[]) => callToolMock(...args),
-  RpcError: class extends Error {},
+/* Mock the view layer so "Show code" resolves without a backend. */
+const getSnippetMock = vi.fn();
+vi.mock("../api/views", () => ({
+  getSnippet: (...args: unknown[]) => getSnippetMock(...args),
+  ViewError: class extends Error {},
 }));
 
 const NODE: GraphNode = {
@@ -43,7 +43,7 @@ describe("NodeDetailPanel code preview + deep-link", () => {
   it("renders fetched source as escaped text, never as injected HTML", async () => {
     /* A payload that would execute if the code were rendered as raw HTML. */
     const payload = "<script>window.__pwned = true;</script>\nconst answer = 42;";
-    callToolMock.mockResolvedValueOnce({ source: payload });
+    getSnippetMock.mockResolvedValueOnce({ source: payload });
 
     const { container } = render(
       <NodeDetailPanel
@@ -68,12 +68,7 @@ describe("NodeDetailPanel code preview + deep-link", () => {
     /* …but was NOT parsed into a real <script> element, and did not execute. */
     expect(container.querySelector("script")).toBeNull();
     expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
-    expect(callToolMock).toHaveBeenCalledWith("get_code_snippet", {
-      qualified_name: "app::render",
-      project: "demo",
-      format: "json",
-      source_mode: "full",
-    });
+    expect(getSnippetMock).toHaveBeenCalledWith("demo", "app::render");
   });
 
   it("builds an https GitHub deep-link with URL-encoded path segments", () => {

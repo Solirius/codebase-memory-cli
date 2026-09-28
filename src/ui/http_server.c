@@ -44,6 +44,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <stdarg.h>
@@ -1747,6 +1748,10 @@ static void handle_layout(cbm_http_conn_t *c, const cbm_http_req_t *req) {
 
 /* ── Handle JSON-RPC request ──────────────────────────────────── */
 
+/* CBM_FORK_CLI_ONLY: the /rpc JSON-RPC bridge (and the helpers only it uses)
+ * is absent from fork builds; the UI uses the GET view routes below. */
+#ifndef CBM_FORK_CLI_ONLY
+
 static yyjson_val *json_unique_member(yyjson_val *object, const char *name) {
     if (!yyjson_is_obj(object))
         return NULL;
@@ -1806,6 +1811,218 @@ static void handle_rpc(cbm_http_conn_t *c, const cbm_http_req_t *req, cbm_mcp_se
         cbm_http_replyf(c, 204, g_cors, "%s", "");
     }
 }
+#endif /* CBM_FORK_CLI_ONLY (/rpc) */
+
+/* ── Read-only view routes (GET /api/projects|schema|snippet) ─── */
+
+/* The graph UI's three read tools, served as plain JSON (the unwrapped tool
+ * payload) with arguments fixed server-side. No request body is read and no
+ * JSON-RPC envelope is produced. */
+
+#define VIEW_PARAM_CAP 4096
+
+typedef enum { VIEW_PARAM_OK, VIEW_PARAM_ABSENT, VIEW_PARAM_INVALID } view_param_status_t;
+
+/* Raw (undecoded) value length of the first `name` key in `query`, or -1. */
+static long view_query_raw_len(const char *query, const char *name) {
+    size_t name_len = strlen(name);
+    const char *p = query;
+    while (p && *p) {
+        const char *pair_end = strchr(p, '&');
+        if (!pair_end)
+            pair_end = p + strlen(p);
+        const char *eq = memchr(p, '=', (size_t)(pair_end - p));
+        size_t klen = eq ? (size_t)(eq - p) : (size_t)(pair_end - p);
+        if (klen == name_len && memcmp(p, name, name_len) == 0)
+            return eq ? (long)(pair_end - eq - 1) : 0;
+        p = *pair_end ? pair_end + 1 : pair_end;
+    }
+    return -1;
+}
+
+static view_param_status_t view_param_str(const cbm_http_req_t *req, const char *name, char *buf,
+                                          int bufsz) {
+    if (cbm_http_query_param(req->query, name, buf, bufsz))
+        return VIEW_PARAM_OK;
+    return view_query_raw_len(req->query, name) > 0 ? VIEW_PARAM_INVALID : VIEW_PARAM_ABSENT;
+}
+
+static view_param_status_t view_param_int(const cbm_http_req_t *req, const char *name,
+                                          long *out) {
+    char buf[32];
+    if (!cbm_http_query_param(req->query, name, buf, (int)sizeof(buf)))
+        return view_query_raw_len(req->query, name) >= 0 ? VIEW_PARAM_INVALID : VIEW_PARAM_ABSENT;
+    if (buf[0] < '0' || buf[0] > '9')
+        return VIEW_PARAM_INVALID;
+    errno = 0;
+    char *end = NULL;
+    long value = strtol(buf, &end, 10);
+    if (errno != 0 || !end || *end != '\0' || value < 0 || value > INT_MAX)
+        return VIEW_PARAM_INVALID;
+    *out = value;
+    return VIEW_PARAM_OK;
+}
+
+/* Adds an optional integer param to `obj`. Replies 400 and returns false on
+ * a malformed value. */
+static bool view_add_int(cbm_http_conn_t *c, const cbm_http_req_t *req, yyjson_mut_doc *doc,
+                         yyjson_mut_val *obj, const char *name) {
+    long value = 0;
+    view_param_status_t status = view_param_int(req, name, &value);
+    if (status == VIEW_PARAM_INVALID) {
+        cbm_http_replyf(c, 400, g_cors_json, "{\"error\":\"invalid %s\"}", name);
+        return false;
+    }
+    if (status == VIEW_PARAM_OK && !yyjson_mut_obj_add_int(doc, obj, name, (int64_t)value)) {
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"out of memory\"}");
+        return false;
+    }
+    return true;
+}
+
+/* Adds a required string param. Replies 400/500 and returns false on failure. */
+static bool view_add_required_str(cbm_http_conn_t *c, const cbm_http_req_t *req,
+                                  yyjson_mut_doc *doc, yyjson_mut_val *obj, const char *name,
+                                  char *buf, int bufsz) {
+    view_param_status_t status = view_param_str(req, name, buf, bufsz);
+    if (status == VIEW_PARAM_ABSENT) {
+        cbm_http_replyf(c, 400, g_cors_json, "{\"error\":\"missing %s\"}", name);
+        return false;
+    }
+    if (status == VIEW_PARAM_INVALID) {
+        cbm_http_replyf(c, 400, g_cors_json, "{\"error\":\"invalid %s\"}", name);
+        return false;
+    }
+    if (!yyjson_mut_obj_add_strcpy(doc, obj, name, buf)) {
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"out of memory\"}");
+        return false;
+    }
+    return true;
+}
+
+/* Serializes `doc`, runs `tool` and replies with the unwrapped payload.
+ * Takes ownership of `doc`. */
+static void view_reply_tool(cbm_http_conn_t *c, cbm_http_server_t *srv, const char *tool,
+                            yyjson_mut_doc *doc) {
+    char *args = yyjson_mut_write(doc, 0, NULL);
+    yyjson_mut_doc_free(doc);
+    if (!args) {
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"out of memory\"}");
+        return;
+    }
+    char *result = srv->mcp ? cbm_mcp_handle_tool(srv->mcp, tool, args) : NULL;
+    free(args);
+    if (!result) {
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"tool failed\"}");
+        return;
+    }
+    yyjson_doc *parsed = yyjson_read(result, strlen(result), 0);
+    yyjson_val *root = parsed ? yyjson_doc_get_root(parsed) : NULL;
+    yyjson_val *content = root ? yyjson_obj_get(root, "content") : NULL;
+    if (!root) {
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"invalid tool result\"}");
+    } else if (!content) {
+        cbm_http_replyf(c, 200, g_cors_json, "%s", result);
+    } else {
+        yyjson_val *text = yyjson_obj_get(yyjson_arr_get_first(content), "text");
+        if (yyjson_is_str(text)) {
+            cbm_http_replyf(c, 200, g_cors_json, "%s", yyjson_get_str(text));
+        } else {
+            cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"invalid tool result\"}");
+        }
+    }
+    yyjson_doc_free(parsed);
+    free(result);
+}
+
+/* New args doc with `format:"json"` set; replies 500 and returns NULL on OOM. */
+static yyjson_mut_doc *view_args_new(cbm_http_conn_t *c, yyjson_mut_val **obj) {
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    *obj = doc ? yyjson_mut_obj(doc) : NULL;
+    if (*obj)
+        yyjson_mut_doc_set_root(doc, *obj);
+    if (!*obj || !yyjson_mut_obj_add_str(doc, *obj, "format", "json")) {
+        yyjson_mut_doc_free(doc);
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"out of memory\"}");
+        return NULL;
+    }
+    return doc;
+}
+
+static void handle_view_projects(cbm_http_server_t *srv, cbm_http_conn_t *c,
+                                 const cbm_http_req_t *req) {
+    yyjson_mut_val *obj = NULL;
+    yyjson_mut_doc *doc = view_args_new(c, &obj);
+    if (!doc)
+        return;
+    if (!yyjson_mut_obj_add_str(doc, obj, "detail", "stats")) {
+        yyjson_mut_doc_free(doc);
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"out of memory\"}");
+        return;
+    }
+    if (!view_add_int(c, req, doc, obj, "limit") || !view_add_int(c, req, doc, obj, "offset")) {
+        yyjson_mut_doc_free(doc);
+        return;
+    }
+    view_reply_tool(c, srv, "list_projects", doc);
+}
+
+static void handle_view_schema(cbm_http_server_t *srv, cbm_http_conn_t *c,
+                               const cbm_http_req_t *req) {
+    char project[VIEW_PARAM_CAP];
+    yyjson_mut_val *obj = NULL;
+    yyjson_mut_doc *doc = view_args_new(c, &obj);
+    if (!doc)
+        return;
+    if (!view_add_required_str(c, req, doc, obj, "project", project, (int)sizeof(project)) ||
+        !view_add_int(c, req, doc, obj, "limit") || !view_add_int(c, req, doc, obj, "offset")) {
+        yyjson_mut_doc_free(doc);
+        return;
+    }
+    view_reply_tool(c, srv, "get_graph_schema", doc);
+}
+
+static void handle_view_snippet(cbm_http_server_t *srv, cbm_http_conn_t *c,
+                                const cbm_http_req_t *req) {
+    char project[VIEW_PARAM_CAP];
+    char qualified_name[VIEW_PARAM_CAP];
+    yyjson_mut_val *obj = NULL;
+    yyjson_mut_doc *doc = view_args_new(c, &obj);
+    if (!doc)
+        return;
+    if (!view_add_required_str(c, req, doc, obj, "project", project, (int)sizeof(project)) ||
+        !view_add_required_str(c, req, doc, obj, "qualified_name", qualified_name,
+                               (int)sizeof(qualified_name))) {
+        yyjson_mut_doc_free(doc);
+        return;
+    }
+    if (!yyjson_mut_obj_add_str(doc, obj, "source_mode", "full")) {
+        yyjson_mut_doc_free(doc);
+        cbm_http_replyf(c, 500, g_cors_json, "{\"error\":\"out of memory\"}");
+        return;
+    }
+    view_reply_tool(c, srv, "get_code_snippet", doc);
+}
+
+/* Returns true when the request targeted a view route and was answered. */
+static bool dispatch_view_route(cbm_http_server_t *srv, cbm_http_conn_t *c,
+                                const cbm_http_req_t *req) {
+    void (*handler)(cbm_http_server_t *, cbm_http_conn_t *, const cbm_http_req_t *) = NULL;
+    if (strcmp(req->path, "/api/projects") == 0)
+        handler = handle_view_projects;
+    else if (strcmp(req->path, "/api/schema") == 0)
+        handler = handle_view_schema;
+    else if (strcmp(req->path, "/api/snippet") == 0)
+        handler = handle_view_snippet;
+    if (!handler)
+        return false;
+    if (strcmp(req->method, "GET") != 0) {
+        cbm_http_replyf(c, 405, g_cors_json, "{\"error\":\"method not allowed\"}");
+        return true;
+    }
+    handler(srv, c, req);
+    return true;
+}
 
 /* ── Request dispatch ─────────────────────────────────────────── */
 
@@ -1824,7 +2041,11 @@ static bool host_is_this_server(const char *host, int port) {
 }
 
 static bool route_is_protected(const char *path) {
+#ifdef CBM_FORK_CLI_ONLY
+    return strcmp(path, "/api") == 0 || strncmp(path, "/api/", 5) == 0;
+#else
     return strcmp(path, "/api") == 0 || strncmp(path, "/api/", 5) == 0 || strcmp(path, "/rpc") == 0;
+#endif
 }
 
 static bool content_type_is_json(const char *content_type) {
@@ -1961,11 +2182,17 @@ static void dispatch_request(cbm_http_server_t *srv, cbm_http_conn_t *c,
         return;
     }
 
+    /* GET /api/projects|schema|snippet → read-only tool views (plain JSON) */
+    if (dispatch_view_route(srv, c, req))
+        return;
+
+#ifndef CBM_FORK_CLI_ONLY
     /* POST /rpc → JSON-RPC dispatch (reuses existing MCP tools) */
     if (is_post && cbm_http_path_match(req->path, "/rpc")) {
         handle_rpc(c, req, srv->mcp);
         return;
     }
+#endif
 
     /* GET /api/layout → 3D graph layout */
     if (is_get && cbm_http_path_match(req->path, "/api/layout*")) {

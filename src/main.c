@@ -1054,7 +1054,9 @@ static int run_cli(int argc, char **argv, cbm_project_lock_manager_t *project_lo
 static void print_help(void) {
     printf("codebase-memory-mcp %s\n\n", CBM_VERSION);
     printf("Usage:\n");
+#ifndef CBM_FORK_CLI_ONLY
     printf("  codebase-memory-mcp              Run MCP server on stdio\n");
+#endif
     printf("  codebase-memory-mcp cli [--quiet] [--progress] [--verbose] [--json] <tool> "
            "[args]\n");
     printf("                                      Run one tool locally, then exit\n");
@@ -1679,6 +1681,10 @@ static bool main_semver_newer(const char *candidate, const char *active) {
  * cannot start always says why", so it belongs on every client-path exit, not
  * just the one that happened to be fixed first. */
 static void main_report_client_failure(cbm_daemon_process_role_t role, const char *detail) {
+#ifdef CBM_FORK_CLI_ONLY
+    /* No MCP client role exists in the fork: never emit a JSON-RPC frame. */
+    (void)role;
+#else
     if (cbm_daemon_process_role_requires_client(role)) {
         char escaped[CBM_DAEMON_CONFLICT_MESSAGE_SIZE * 2];
         size_t out = 0;
@@ -1700,6 +1706,7 @@ static void main_report_client_failure(cbm_daemon_process_role_t role, const cha
                       escaped);
         (void)fflush(stdout);
     }
+#endif
     (void)fprintf(stderr, "codebase-memory-mcp: %s\n", detail);
 }
 

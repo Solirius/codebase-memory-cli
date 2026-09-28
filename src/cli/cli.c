@@ -10599,6 +10599,16 @@ static int cli_install_activate(void *opaque) {
 }
 
 int cbm_cmd_install(int argc, char **argv) {
+#ifdef CBM_FORK_CLI_ONLY
+    /* CLI-only build: no agent MCP registration. Refuse before any argument
+     * parsing or filesystem access (milestone 05 adds the replacement). */
+    (void)argc;
+    (void)argv;
+    (void)fputs("{\"error\":\"install is not available in the CLI-only build; see docs "
+                "(milestone 05)\"}\n",
+                stdout);
+    return CLI_TRUE;
+#endif
     parse_auto_answer(argc, argv);
     bool dry_run = false;
     bool force = false;
@@ -13119,7 +13129,11 @@ int cbm_cmd_update(int argc, char **argv) {
     }
 
     printf("\nAll project indexes were cleared. They will be rebuilt\n");
+#ifdef CBM_FORK_CLI_ONLY
+    printf("automatically when you next index a repository.\n");
+#else
     printf("automatically when you next use the MCP server.\n");
+#endif
     printf("\nUpdate complete. Please restart your coding-agent sessions to "
            "properly take this into account.\n");
     return 0;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { callTool } from "../api/rpc";
+import { getProjects, getSchema } from "../api/views";
 import type { Project, SchemaInfo } from "../lib/types";
 
 interface ProjectInfo {
@@ -35,12 +35,7 @@ async function fetchAllProjects(): Promise<Project[]> {
   const projects: Project[] = [];
   let offset = 0;
   for (;;) {
-    const page = await callTool<ProjectPage>("list_projects", {
-      format: "json",
-      detail: "stats",
-      limit: PAGE_LIMIT,
-      offset,
-    });
+    const page = await getProjects<ProjectPage>(PAGE_LIMIT, offset);
     projects.push(...(page.projects ?? []));
     const next = nextPageOffset(page, offset);
     if (next === null) return projects;
@@ -54,12 +49,7 @@ async function fetchFullSchema(project: string): Promise<SchemaInfo> {
   let firstPage: SchemaPage | null = null;
   let offset = 0;
   for (;;) {
-    const page = await callTool<SchemaPage>("get_graph_schema", {
-      project,
-      format: "json",
-      limit: PAGE_LIMIT,
-      offset,
-    });
+    const page = await getSchema<SchemaPage>(project, PAGE_LIMIT, offset);
     firstPage ??= page;
     nodeLabels.push(...(page.node_labels ?? []));
     edgeTypes.push(...(page.edge_types ?? []));

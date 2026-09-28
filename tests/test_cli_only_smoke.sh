@@ -158,6 +158,19 @@ for i in 1 2 3; do
   else fail "concurrent index #$i: rc=$ra/$rb or integrity failed"; fi
 done
 
+# ── M7 / TEST-6: help and install/uninstall output never advise MCP setup ─
+MCP_SETUP_RE='mcp server|mcpServers|\.mcp\.json|claude mcp add'
+for argv in "--help" "-h" "cli --help" "install --help" "uninstall --help" \
+            "update --help" "config --help" "install" "uninstall --dry-run -y"; do
+  # shellcheck disable=SC2086  # argv is a deliberate word list
+  run_bounded 10 "$WORK/o" "$WORK/e" null $argv
+  # Removal reports name the file they edited; they are not setup advice.
+  hits="$(cat "$WORK/o" "$WORK/e" | grep -viE '(^|[[:space:]])removed[[:space:]]' | grep -iE "$MCP_SETUP_RE")"
+  if ((RC == 124)); then fail "'$argv': timed out"
+  elif [[ -n $hits ]]; then fail "'$argv' mentions MCP setup: $(echo "$hits" | head -2)"
+  else ok "'$argv' output MCP-setup free (rc=$RC)"; fi
+done
+
 # ── Artifacts ────────────────────────────────────────────────────────────
 bad="$(find "$WORK" \( -type s -o -name '*.sock' -o -name '*cohort*' -o -name '*daemon*' -o -name '*startup_lock*' \) 2>/dev/null)"
 [[ -z $bad ]] && ok "no socket/daemon artifacts under temp root" || fail "artifacts: $bad"

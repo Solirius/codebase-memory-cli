@@ -28,13 +28,16 @@ Debt carried forward (each item has an owner below):
 - **D-1** F3 E1 (dynamic strace no-network proof) and E2 (daemon-vs-guarded byte diff) were only
   covered by substitute evidence. → E1 is owned by 04 (dynamic egress/listen audit). E2 is dropped: the
   guards are reviewed in the diff instead of proven by a byte-for-byte build comparison.
-- **D-2** `src/ui/http_server.c:1800` calls `cbm_mcp_server_handle`, so part of the MCP JSON-RPC
+- **D-2** ✅ CLOSED by 02 (`/rpc` guarded out; UI uses `/api/projects|schema|snippet`). `src/ui/http_server.c:1800` calls `cbm_mcp_server_handle`, so part of the MCP JSON-RPC
   handler stays reachable through the UI (`/rpc`, used by `graph-ui/src/api/rpc.ts`). → owned by 02.
-- **D-3** `cli-only.mk` builds main.c/cli.c with `-Wno-unused-function -Wno-unused-variable`. →
+- **D-3** ✅ CLOSED by 02 (narrowed to `main.c` only, 19 guarded-out helpers listed in 02 plan.md). `cli-only.mk` builds main.c/cli.c with `-Wno-unused-function -Wno-unused-variable`. →
   02 either justifies this or narrows it.
-- **D-5** `install`/agent setup (`src/cli/agent_clients.c`, `agent_profiles.c`, `cli.c`) writes
+- **D-5** ✅ CLOSED by 02 (`install` refuses in the fork; `uninstall` is remove-only). `install`/agent setup (`src/cli/agent_clients.c`, `agent_profiles.c`, `cli.c`) writes
   `mcpServers`/`.mcp.json` entries into Copilot and other agent configs. That registers the app
   as an MCP server, which the company ban forbids. → owned by 02; its CLI-only replacement is in 05.
+- **D-6** `Makefile.cbm` `test-par` runs `cd $(CURDIR)` unquoted, so `scripts/test.sh` fails (Error 127)
+  when the repo path contains a space. Pre-existing; workaround `bash scripts/run-tests-parallel.sh
+  build/c/test-runner`. → owned by 06 (acceptance gate must run from any path).
 - **D-4** `service.c`, `bootstrap.c` and `ipc.c` are still linked, and only section GC removes
   their socket code. → 04 must prove it both statically (nm) and dynamically.
 
@@ -43,7 +46,7 @@ Debt carried forward (each item has an owner below):
 | # | Feature Slug | Scope Summary | Dependencies | Status |
 |---|---|---|---|---|
 | 01 | `cli-only-dispatch-verification` | Finish old F4: smoke test (`tests/test_cli_only_smoke.sh`) for inert non-CLI argv, all 17 tools returning JSON, concurrent indexing serialized | F1–F3 (done) | COMPLETED |
-| 02 | `residual-mcp-surface-audit` | Remove `/rpc` and every MCP JSON-RPC router path (D-2); stop `install`/agent setup writing MCP server configs (D-5); rewire `graph-ui/src/api/rpc.ts` to plain `/api/*`; resolve D-3; nm/strings gate | 01 | PENDING |
+| 02 | `residual-mcp-surface-audit` | Remove `/rpc` and every MCP JSON-RPC router path (D-2); stop `install`/agent setup writing MCP server configs (D-5); rewire `graph-ui/src/api/rpc.ts` to plain `/api/*`; resolve D-3; nm/strings gate | 01 | COMPLETED |
 | 03 | `loopback-ui-subcommand` | Optional `cbm-cli-with-ui` build; `codebase-memory-cli ui [--port N]` starts the graph UI in-process, bound to 127.0.0.1 only; plain `cbm-cli` contains no HTTP code | 02 | PENDING |
 | 04 | `no-network-hardening` | Compile out the GitHub update check; `security-network.sh` forbids all egress and every socket/bind/listen except the loopback UI; prune the allowlist; fork `security-cli` target; closes D-1 and D-4 | 03 | PENDING |
 | 05 | `copilot-cli-and-quickstart` | Copilot command-invocation recipes (VS Code, Visual Studio, JetBrains, Android Studio), wrapper script, verified quickstart and JSON shapes | 04 | PENDING |
@@ -64,8 +67,8 @@ Debt carried forward (each item has an owner below):
    writes MCP server registrations (`mcpServers`, `.mcp.json`) into any agent/IDE config. Only the
    tool *engine* (`cbm_mcp_handle_tool`) survives, as an internal C call. Internal "mcp" names are
    acceptable (**protocol-only policy**, decided 2026-09-24). Copilot agents integrate **only** by
-   running CLI commands. Today the UI still routes to
-   the router (D-2), so this invariant is **not yet met**; 02 closes it and 06 A6 re-proves it.
+   running CLI commands. Since 02 the UI no longer routes to
+   the router and `verify-cli-only-link` forbids the router symbols/protocol strings; 06 A6 re-proves it.
 4. **CLI arguments are the only input interface** (decided 2026-09-24). You drive every capability
    with `codebase-memory-cli <command> [flags]`. There is no stdin protocol, no RPC endpoint, and
    no behaviour that requires a config file. Every capability the UI offers has an equivalent CLI

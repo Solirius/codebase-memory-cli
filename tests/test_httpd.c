@@ -1130,6 +1130,7 @@ TEST(ui_server_rejects_foreign_and_null_origins) {
     PASS();
 }
 
+#ifndef CBM_FORK_CLI_ONLY /* upstream /rpc behaviour */
 TEST(ui_server_mutations_require_json_content_type) {
     th_server_t ts;
     ASSERT_EQ(th_server_start(&ts), 0);
@@ -1168,7 +1169,9 @@ TEST(ui_server_mutations_require_json_content_type) {
     th_server_stop(&ts);
     PASS();
 }
+#endif
 
+#ifndef CBM_FORK_CLI_ONLY /* upstream /rpc behaviour */
 TEST(ui_server_rpc_allows_only_ui_read_tools) {
     th_server_t ts;
     ASSERT_EQ(th_server_start(&ts), 0);
@@ -1234,6 +1237,7 @@ TEST(ui_server_rpc_allows_only_ui_read_tools) {
     th_server_stop(&ts);
     PASS();
 }
+#endif
 
 TEST(ui_server_oversized_body_rejected) {
     th_server_t ts;
@@ -2001,6 +2005,7 @@ static int th_http_deadline(int port, const char *request, char *resp, size_t re
  * whole UI stopped answering. Assert the running server answers list_projects
  * within a hard deadline while it holds live listening sockets. The client
  * receive-timeout is the watchdog: a wedge → no 200 → FAIL, never a CI hang. */
+#ifndef CBM_FORK_CLI_ONLY /* upstream /rpc path */
 TEST(ui_server_list_projects_responds_under_watchdog) {
     th_server_t ts;
     ASSERT_EQ(th_server_start(&ts), 0);
@@ -2020,6 +2025,23 @@ TEST(ui_server_list_projects_responds_under_watchdog) {
     ASSERT_NOT_NULL(strstr(resp, "\"jsonrpc\""));
     PASS();
 }
+#else
+/* Fork build: same #798 hang repro through the GET view route. */
+TEST(ui_server_list_projects_responds_under_watchdog) {
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    char req[256];
+    snprintf(req, sizeof(req), "GET /api/projects HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n",
+             cbm_http_server_port(ts.srv));
+    char resp[8192];
+    int n = th_http_deadline(cbm_http_server_port(ts.srv), req, resp, sizeof(resp), 15000);
+    th_server_stop(&ts);
+    ASSERT_GT(n, 0); /* a response arrived before the watchdog fired */
+    ASSERT_EQ(th_status(resp), 200);
+    ASSERT_NULL(strstr(resp, "\"jsonrpc\""));
+    PASS();
+}
+#endif
 
 #ifdef _WIN32
 typedef struct {
@@ -2366,6 +2388,231 @@ TEST(ui_server_index_status_long_paths_no_overflow) {
 
 /* ── Suite ────────────────────────────────────────────────────── */
 
+/* ── Read-only view routes: GET /api/projects|schema|snippet ─────── */
+
+/* Fixture: one project DB under a temp CBM_CACHE_DIR with one Function node
+ * whose source lives in <root>/src/a.c. */
+static int ui_view_fixture_init(ui_delete_fixture_t *fx) {
+    if (ui_delete_fixture_init(fx) != 0)
+        return -1;
+    char src_dir[600];
+    snprintf(src_dir, sizeof(src_dir), "%s/src", fx->root_dir);
+    char src_file[640];
+    snprintf(src_file, sizeof(src_file), "%s/a.c", src_dir);
+    if (th_mkdir_p(src_dir) != 0 ||
+        th_write_file(src_file, "int view_fn(void) {\n    return 42;\n}\n") != 0)
+        return -1;
+    char db_path[1024];
+    ui_delete_db_path(fx, "viewproj", db_path, sizeof(db_path));
+    cbm_store_t *store = cbm_store_open_path(db_path);
+    if (!store)
+        return -1;
+    int rc = cbm_store_upsert_project(store, "viewproj", fx->root_dir);
+    cbm_node_t node = {.project = "viewproj",
+                       .label = "Function",
+                       .name = "view_fn",
+                       .qualified_name = "viewproj.src.a.view_fn",
+                       .file_path = "src/a.c",
+                       .start_line = 1,
+                       .end_line = 3,
+                       .properties_json = "{}"};
+    int64_t id = cbm_store_upsert_node(store, &node);
+    cbm_store_close(store);
+    return rc == 0 && id > 0 ? 0 : -1;
+}
+
+static int ui_view_get(th_server_t *ts, const char *method, const char *target, char *resp,
+                       size_t respsz) {
+    char req[8192];
+    int len = snprintf(req, sizeof(req), "%s %s HTTP/1.1\r\n\r\n", method, target);
+    if (len <= 0 || (size_t)len >= sizeof(req))
+        return 0;
+    return th_http(cbm_http_server_port(ts->srv), req, resp, respsz);
+}
+
+static const char *ui_view_body(const char *resp) {
+    const char *body = strstr(resp, "\r\n\r\n");
+    return body ? body + 4 : "";
+}
+
+TEST(ui_view_projects_ok) {
+    ui_delete_fixture_t fx;
+    ASSERT_EQ(ui_view_fixture_init(&fx), 0);
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    static char resp[65536];
+    int n = ui_view_get(&ts, "GET", "/api/projects?limit=500&offset=0", resp, sizeof(resp));
+    ASSERT_GT(n, 0);
+    ASSERT_EQ(th_status(resp), 200);
+    ASSERT_NOT_NULL(strstr(resp, "Content-Type: application/json"));
+    const char *body = ui_view_body(resp);
+    ASSERT_EQ(body[0], '{');
+    ASSERT_NOT_NULL(strstr(body, "\"projects\""));
+    ASSERT_NOT_NULL(strstr(body, "viewproj"));
+    ASSERT_NULL(strstr(resp, "\"jsonrpc\""));
+    n = ui_view_get(&ts, "GET", "/api/projects", resp, sizeof(resp));
+    ASSERT_GT(n, 0);
+    ASSERT_EQ(th_status(resp), 200);
+    ASSERT_NOT_NULL(strstr(ui_view_body(resp), "\"projects\""));
+    th_server_stop(&ts);
+    ui_delete_fixture_cleanup(&fx);
+    PASS();
+}
+
+TEST(ui_view_schema_ok) {
+    ui_delete_fixture_t fx;
+    ASSERT_EQ(ui_view_fixture_init(&fx), 0);
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    static char resp[65536];
+    int n = ui_view_get(&ts, "GET", "/api/schema?project=viewproj&limit=500&offset=0", resp,
+                        sizeof(resp));
+    ASSERT_GT(n, 0);
+    ASSERT_EQ(th_status(resp), 200);
+    const char *body = ui_view_body(resp);
+    ASSERT_EQ(body[0], '{');
+    ASSERT_NOT_NULL(strstr(body, "\"node_labels\""));
+    ASSERT_NULL(strstr(resp, "\"jsonrpc\""));
+    th_server_stop(&ts);
+    ui_delete_fixture_cleanup(&fx);
+    PASS();
+}
+
+TEST(ui_view_snippet_ok) {
+    ui_delete_fixture_t fx;
+    ASSERT_EQ(ui_view_fixture_init(&fx), 0);
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    static char resp[65536];
+    int n = ui_view_get(&ts, "GET",
+                        "/api/snippet?project=viewproj&qualified_name=viewproj.src.a.view_fn",
+                        resp, sizeof(resp));
+    ASSERT_GT(n, 0);
+    ASSERT_EQ(th_status(resp), 200);
+    const char *body = ui_view_body(resp);
+    ASSERT_EQ(body[0], '{');
+    ASSERT_NOT_NULL(strstr(body, "\"source\""));
+    ASSERT_NOT_NULL(strstr(body, "return 42"));
+    ASSERT_NULL(strstr(resp, "\"jsonrpc\""));
+    th_server_stop(&ts);
+    ui_delete_fixture_cleanup(&fx);
+    PASS();
+}
+
+TEST(ui_view_missing_param_400) {
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    static char resp[8192];
+    static const char *targets[] = {
+        "/api/schema",
+        "/api/schema?project=",
+        "/api/snippet?qualified_name=x",
+        "/api/snippet?project=p",
+        "/api/snippet?project=p&qualified_name=",
+    };
+    for (size_t i = 0; i < sizeof(targets) / sizeof(targets[0]); i++) {
+        int n = ui_view_get(&ts, "GET", targets[i], resp, sizeof(resp));
+        ASSERT_GT(n, 0);
+        ASSERT_EQ(th_status(resp), 400);
+        ASSERT_NOT_NULL(strstr(ui_view_body(resp), "{\"error\":\"missing "));
+    }
+    th_server_stop(&ts);
+    PASS();
+}
+
+TEST(ui_view_bad_int_400) {
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    static char resp[8192];
+    static const char *targets[] = {
+        "/api/projects?limit=abc",       "/api/projects?offset=-1",
+        "/api/projects?limit=5x",        "/api/projects?limit=99999999999999",
+        "/api/projects?limit=",          "/api/schema?project=p&limit=-3",
+        "/api/schema?project=p&offset=1.5",
+    };
+    for (size_t i = 0; i < sizeof(targets) / sizeof(targets[0]); i++) {
+        int n = ui_view_get(&ts, "GET", targets[i], resp, sizeof(resp));
+        ASSERT_GT(n, 0);
+        ASSERT_EQ(th_status(resp), 400);
+        ASSERT_NOT_NULL(strstr(ui_view_body(resp), "{\"error\":"));
+    }
+    th_server_stop(&ts);
+    PASS();
+}
+
+TEST(ui_view_oversize_param_400) {
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    static char target[6000];
+    static char resp[8192];
+    int pos = snprintf(target, sizeof(target), "/api/snippet?qualified_name=q&project=");
+    for (int i = 0; i < 4200; i++)
+        target[pos++] = 'a';
+    target[pos] = '\0';
+    int n = ui_view_get(&ts, "GET", target, resp, sizeof(resp));
+    ASSERT_GT(n, 0);
+    ASSERT_EQ(th_status(resp), 400);
+    ASSERT_NULL(strstr(resp, "aaaaaaaa"));
+    th_server_stop(&ts);
+    PASS();
+}
+
+TEST(ui_view_wrong_method_rejected) {
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    static char resp[8192];
+    static const char *targets[] = {"/api/projects", "/api/schema?project=p",
+                                    "/api/snippet?project=p&qualified_name=q"};
+    static const char *methods[] = {"POST", "PUT", "DELETE"};
+    for (size_t t = 0; t < sizeof(targets) / sizeof(targets[0]); t++) {
+        for (size_t m = 0; m < sizeof(methods) / sizeof(methods[0]); m++) {
+            int n = ui_view_get(&ts, methods[m], targets[t], resp, sizeof(resp));
+            ASSERT_GT(n, 0);
+            int status = th_status(resp);
+            ASSERT_TRUE(status == 404 || status == 405);
+            ASSERT_NULL(strstr(resp, "\"projects\""));
+        }
+    }
+    th_server_stop(&ts);
+    PASS();
+}
+
+#ifdef CBM_FORK_CLI_ONLY
+/* Fork build: no route answers JSON-RPC (spec FAIL-8, TEST-2). */
+TEST(ui_fork_rejects_jsonrpc_everywhere) {
+    th_server_t ts;
+    ASSERT_EQ(th_server_start(&ts), 0);
+    int port = cbm_http_server_port(ts.srv);
+    static const char *bodies[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",
+        ("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\","
+         "\"params\":{\"name\":\"list_projects\",\"arguments\":{}}}"),
+    };
+    static const char *paths[] = {"/",           "/rpc",         "/api/projects",
+                                  "/api/schema", "/api/snippet", "/api/nope"};
+    static char req[2048];
+    static char resp[8192];
+    for (size_t p = 0; p < sizeof(paths) / sizeof(paths[0]); p++) {
+        for (size_t b = 0; b < sizeof(bodies) / sizeof(bodies[0]); b++) {
+            snprintf(req, sizeof(req),
+                     "POST %s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: %zu\r\n\r\n%s",
+                     paths[p], port, strlen(bodies[b]), bodies[b]);
+            int n = th_http_raw(port, req, resp, sizeof(resp));
+            ASSERT_GT(n, 0);
+            ASSERT_NEQ(th_status(resp), 200);
+            ASSERT_NULL(strstr(resp, "\"jsonrpc\""));
+            if (strcmp(paths[p], "/rpc") == 0)
+                ASSERT_EQ(th_status(resp), 404);
+        }
+    }
+    th_server_stop(&ts);
+    PASS();
+}
+#endif
+
 SUITE(httpd) {
     RUN_TEST(ui_server_browse_wide_dir_no_overflow);
     RUN_TEST(ui_server_logs_escape_dense_no_overflow);
@@ -2407,8 +2654,12 @@ SUITE(httpd) {
     RUN_TEST(ui_server_root_without_embedded_assets_is_not_found);
     RUN_TEST(ui_server_same_origin_request_is_allowed);
     RUN_TEST(ui_server_rejects_foreign_and_null_origins);
+#ifndef CBM_FORK_CLI_ONLY
     RUN_TEST(ui_server_mutations_require_json_content_type);
+#endif
+#ifndef CBM_FORK_CLI_ONLY
     RUN_TEST(ui_server_rpc_allows_only_ui_read_tools);
+#endif
     RUN_TEST(ui_server_oversized_body_rejected);
     RUN_TEST(ui_server_encoded_slash_not_routed);
     RUN_TEST(ui_server_nul_in_target_rejected);
@@ -2438,4 +2689,15 @@ SUITE(httpd) {
     /* #798 follow-up: full UI-mode hang repro under live sockets */
     RUN_TEST(ui_server_list_projects_responds_under_watchdog);
     RUN_TEST(git_context_resolve_no_hang_under_live_ui_sockets);
+    /* Read-only view routes (unguarded, both builds) */
+    RUN_TEST(ui_view_projects_ok);
+    RUN_TEST(ui_view_schema_ok);
+    RUN_TEST(ui_view_snippet_ok);
+    RUN_TEST(ui_view_missing_param_400);
+    RUN_TEST(ui_view_bad_int_400);
+    RUN_TEST(ui_view_oversize_param_400);
+    RUN_TEST(ui_view_wrong_method_rejected);
+#ifdef CBM_FORK_CLI_ONLY
+    RUN_TEST(ui_fork_rejects_jsonrpc_everywhere);
+#endif
 }

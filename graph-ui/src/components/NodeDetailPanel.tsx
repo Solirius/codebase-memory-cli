@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { colorForLabel } from "../lib/colors";
-import { callTool } from "../api/rpc";
+import { getSnippet } from "../api/views";
 import type { GraphNode, GraphEdge, RepoInfo } from "../lib/types";
 
 interface Connection {
@@ -73,12 +73,7 @@ export function NodeDetailPanel({
     setCodeLoading(true);
     setCodeError(null);
     try {
-      const res = await callTool<SnippetResult>("get_code_snippet", {
-        qualified_name: node.qualified_name,
-        project,
-        format: "json",
-        source_mode: "full",
-      });
+      const res = await getSnippet<SnippetResult>(project, node.qualified_name);
       setCode(res.source ?? "(source not available)");
     } catch (e) {
       setCodeError(e instanceof Error ? e.message : "Failed to load code");

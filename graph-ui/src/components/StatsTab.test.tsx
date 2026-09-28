@@ -10,10 +10,11 @@ function mockProjectsFetch(extra?: (url: string, init?: RequestInit) => Response
     const url = String(input);
     const overridden = extra?.(url, init);
     if (overridden) return overridden;
-    if (url === "/rpc") {
-      return new Response(JSON.stringify({
-        result: { content: [{ text: JSON.stringify({ projects: [], has_more: false }) }] },
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    if (url.startsWith("/api/projects?")) {
+      return new Response(JSON.stringify({ projects: [], has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
     if (url.startsWith("/api/ui-config")) {
       return new Response(JSON.stringify({ lang: "en" }), {
@@ -211,10 +212,8 @@ describe("StatsTab index modal", () => {
   it("posts empty ADR content when deleting an existing ADR", async () => {
     let saved: unknown = null;
     mockProjectsFetch((url, init) => {
-      if (url === "/rpc") {
-        const body = JSON.parse(String(init?.body));
-        const tool = body.params?.name;
-        const result = tool === "list_projects"
+      if (url.startsWith("/api/projects?") || url.startsWith("/api/schema?")) {
+        const result = url.startsWith("/api/projects?")
           ? {
               projects: [{
                 name: "demo",
@@ -226,9 +225,10 @@ describe("StatsTab index modal", () => {
           : {
               node_labels: [], edge_types: [], total_nodes: 0, total_edges: 0, has_more: false,
             };
-        return new Response(JSON.stringify({
-          result: { content: [{ text: JSON.stringify(result) }] },
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       if (url.startsWith("/api/adr")) {
         if (init?.method === "POST") {
