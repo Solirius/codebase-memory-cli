@@ -1060,10 +1060,12 @@ static void print_help(void) {
     printf("  codebase-memory-mcp cli [--quiet] [--progress] [--verbose] [--json] <tool> "
            "[args]\n");
     printf("                                      Run one tool locally, then exit\n");
+#ifndef CBM_FORK_CLI_ONLY
     printf("  codebase-memory-mcp install [-y|-n] [--force] [--dry-run] "
            "[--dir=<path>] [--skip-config]\n");
     printf("                                      [--clients=<tokens>]  Run "
            "'install --clients' to list tokens\n");
+#endif
     printf("  codebase-memory-mcp uninstall [-y|-n] [--dry-run]\n");
     printf("  codebase-memory-mcp update [-y|-n]\n");
     printf("  codebase-memory-mcp config <list|get|set|reset>\n");
@@ -1080,6 +1082,7 @@ static void print_help(void) {
     printf("  --ui=false   Disable HTTP graph visualization (persisted)\n");
     printf("  --port=N     Set UI port (default 9749, persisted)\n");
     printf("  --tool-profile=analysis|scout  Expose a restricted inspection surface\n");
+#ifndef CBM_FORK_CLI_ONLY
     printf("\nSupported automatic/conditional client surfaces (45):\n");
     printf("  Claude Code, Codex CLI, Gemini CLI, Zed, OpenCode,\n");
     printf("  Antigravity, Aider, KiloCode, VS Code, Cursor, Windsurf,\n");
@@ -1095,6 +1098,7 @@ static void print_help(void) {
     printf("  Manual/UI MCP boundaries: Qodo, Warp, JetBrains AI/ACP, Replit,\n");
     printf("  Plandex, SWE-agent, BLACKBOX, GitHub cloud agents, Jules,\n");
     printf("  CodeRabbit.\n");
+#endif
     /* Rendered from the MCP tool registry: a hand-maintained copy here
      * omitted check_index_coverage (#1361) and could silently drift again. */
     char *tools_help = cbm_mcp_tools_help_list();

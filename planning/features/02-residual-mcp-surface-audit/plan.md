@@ -178,3 +178,8 @@ TASK-9 gates (2026-09-28), all zero warnings:
 | project_lock.c | ipc.h | ipc_private_lock_directory_new | lock |
 | http_server.c | mcp.h | handle_tool, server_new/free, setters, cbm_mcp_text_result | engine |
 
+
+### Follow-up (2026-09-29): help no longer advertises `install`
+- Verification found that fork `--help` still listed `install [--clients=…]`, 45 client surfaces and "Manual/UI MCP boundaries".
+- Red: new smoke check (`INSTALL_ADVERT_RE`) failed on `--help` and `-h`.
+- Green: those `print_help` lines in `main.c` are guarded with `#ifndef CBM_FORK_CLI_ONLY`; the upstream help is unchanged. `--cli-only` build has 0 warnings, `verify-cli-only-link` PASS, `test-cli-only` 0 failures, `make cbm` OK.

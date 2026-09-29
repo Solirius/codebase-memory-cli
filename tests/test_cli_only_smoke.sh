@@ -171,6 +171,16 @@ for argv in "--help" "-h" "cli --help" "install --help" "uninstall --help" \
   else ok "'$argv' output MCP-setup free (rc=$RC)"; fi
 done
 
+# install is refused in the fork, so top-level help must not advertise it or
+# the agent-client registration surfaces it would configure.
+INSTALL_ADVERT_RE='codebase-memory-[a-z]+ install|client surfaces|MCP boundaries'
+for argv in "--help" "-h"; do
+  run_bounded 10 "$WORK/o" "$WORK/e" null $argv
+  hits="$(cat "$WORK/o" "$WORK/e" | grep -iE "$INSTALL_ADVERT_RE")"
+  if [[ -n $hits ]]; then fail "'$argv' advertises install: $(echo "$hits" | head -2)"
+  else ok "'$argv' does not advertise install"; fi
+done
+
 # ── Artifacts ────────────────────────────────────────────────────────────
 bad="$(find "$WORK" \( -type s -o -name '*.sock' -o -name '*cohort*' -o -name '*daemon*' -o -name '*startup_lock*' \) 2>/dev/null)"
 [[ -z $bad ]] && ok "no socket/daemon artifacts under temp root" || fail "artifacts: $bad"
