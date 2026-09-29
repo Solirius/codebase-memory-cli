@@ -1,6 +1,6 @@
 # 03 — `loopback-ui-subcommand`
 
-**Milestone:** 03 of 06 | **Status:** COMPLETED (U7 manual browser check outstanding; see `plan.md`) | **Carries over:** old F5
+**Milestone:** 03 of 06 | **Status:** COMPLETED | **Carries over:** old F5
 
 ## 1. Objective & Rationale
 This brings back the graph **visualization** (a 3D view of nodes and edges, with filters, stats and

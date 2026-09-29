@@ -1,6 +1,6 @@
 # Plan 03 — `loopback-ui-subcommand`
 
-**Spec:** `summary.md` (this folder) | **Status:** COMPLETED (U7 manual browser check outstanding) | **Shared core edits:** none
+**Spec:** `summary.md` (this folder) | **Status:** COMPLETED | **Shared core edits:** none
 
 ## Design
 - **New fork-only TU** `src/cli/cli_only_ui.{c,h}` (never in `PROD_SRCS`; linked only by `cli-only.mk`).
@@ -30,7 +30,7 @@
 | U4 | PASS | foreign `Host` and `Origin` → 403; `scripts/security-ui.sh` passed |
 | U5 | PASS | ASan+UBSan build: 10/10 SIGINT/SIGTERM start/stop cycles rc 0, no sanitizer report; FDs 10 → 10 over 50 requests (LeakSanitizer is not enabled by default on macOS) |
 | U6 | PASS | `POST /rpc` with `tools/list` answers no JSON-RPC |
-| U7 | PENDING (manual) | Open `codebase-memory-cli ui` in a browser, check graph, filters, node details; record a screenshot |
+| U7 | PASS (manual) | User ran `build/c/codebase-memory-cli ui` on 2026-09-29 and confirmed the graph renders in the browser (no screenshot recorded) |
 | extra | PASS | busy port → `port_in_use`, rc 1; `--port 70000` → `invalid_argument` rc 2; `--bind` rejected; `POST /api/index` indexes in-process and the project appears in `/api/projects` |
 
 Standard gates: `make cbm-cli` / `cbm-cli-with-ui` / default `codebase-memory-mcp` build with zero

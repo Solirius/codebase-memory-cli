@@ -12901,6 +12901,14 @@ bool cbm_cli_installer_beside_binary(const char *dir) {
 }
 
 int cbm_cmd_update(int argc, char **argv) {
+#ifdef CBM_FORK_CLI_ONLY
+    /* CLI-only build: no network functionality, so no update hand-off to the
+     * downloading install script. */
+    (void)argc;
+    (void)argv;
+    (void)fputs("{\"error\":\"update is not available in the CLI-only build\"}\n", stdout);
+    return CLI_TRUE;
+#endif
     parse_auto_answer(argc, argv);
 
     bool dry_run = false;

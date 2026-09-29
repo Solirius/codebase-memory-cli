@@ -1070,7 +1070,9 @@ static void print_help(void) {
            "'install --clients' to list tokens\n");
 #endif
     printf("  codebase-memory-mcp uninstall [-y|-n] [--dry-run]\n");
+#ifndef CBM_FORK_CLI_ONLY
     printf("  codebase-memory-mcp update [-y|-n]\n");
+#endif
     printf("  codebase-memory-mcp config <list|get|set|reset>\n");
     printf("  codebase-memory-mcp --version    Print version\n");
     printf("  codebase-memory-mcp --help       Print this help\n");

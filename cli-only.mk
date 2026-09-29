@@ -122,7 +122,8 @@ test-cli-only-ui-live: verify-cli-only-no-http cbm-cli-with-ui-asan
 # U1: the plain binary has no listener code. The only cbm_http_server_* symbol
 # allowed is the filesystem helper resolve_binary_path (used by main.c and the
 # index supervisor to locate the executable; no socket code).
-CLI_ONLY_NO_HTTP_IMPORTS = socket bind listen accept
+# Milestone 04: also no outbound/resolver imports (the plain binary makes no network calls).
+CLI_ONLY_NO_HTTP_IMPORTS = socket bind listen accept connect sendto getaddrinfo gethostbyname
 CLI_ONLY_NO_HTTP_ALLOWED = cbm_http_server_resolve_binary_path
 
 verify-cli-only-no-http: cbm-cli
