@@ -35,6 +35,9 @@
 #include "mcp/index_supervisor.h"
 #include "cli/cli.h"
 #include "cli/progress_sink.h"
+#ifdef CBM_FORK_CLI_ONLY
+#include "cli/cli_only_ui.h"
+#endif
 #include "foundation/constants.h"
 
 enum {
@@ -1077,11 +1080,18 @@ static void print_help(void) {
     printf("  --verbose     Include informational diagnostics\n");
     printf("  --json        Print the raw MCP result envelope\n");
     printf("  --quiet cannot be combined with --progress or outer --verbose.\n");
+#ifdef CBM_FORK_CLI_ONLY
+    printf("\nGraph UI (only in binaries built with --cli-only --with-ui):\n");
+    printf("  codebase-memory-mcp ui [--port N] [--format json]\n");
+    printf("                                      Serve the UI on 127.0.0.1 until Ctrl-C "
+           "(default port 9749)\n");
+#else
     printf("\nUI options:\n");
     printf("  --ui=true    Enable HTTP graph visualization (persisted)\n");
     printf("  --ui=false   Disable HTTP graph visualization (persisted)\n");
     printf("  --port=N     Set UI port (default 9749, persisted)\n");
     printf("  --tool-profile=analysis|scout  Expose a restricted inspection surface\n");
+#endif
 #ifndef CBM_FORK_CLI_ONLY
     printf("\nSupported automatic/conditional client surfaces (45):\n");
     printf("  Claude Code, Codex CLI, Gemini CLI, Zed, OpenCode,\n");
@@ -2669,6 +2679,23 @@ static int main_run_daemon_ctl(int argc, char **argv, const cbm_daemon_ipc_endpo
     return ui_result;
 }
 
+#ifdef CBM_FORK_CLI_ONLY
+/* Fork milestone 03: `ui` runs the loopback graph UI in this process. The
+ * project_lock manager serializes UI mutations against concurrent `cli`
+ * commands; no daemon, cohort or socket coordination is involved. */
+static int main_cli_only_ui(int argc, char **argv) {
+    cbm_daemon_ipc_endpoint_t *endpoint = main_daemon_endpoint_new();
+    cbm_project_lock_manager_t *project_locks =
+        endpoint ? cbm_project_lock_manager_new(endpoint) : NULL;
+    int exit_code = cbm_cli_only_ui_main(argc, argv, project_locks);
+    if (!main_project_lock_manager_close(&project_locks)) {
+        exit_code = EXIT_FAILURE;
+    }
+    cbm_daemon_ipc_endpoint_free(endpoint);
+    return exit_code;
+}
+#endif
+
 int main(int argc, char **argv) {
     /* Must remain the first statement: see allocator binding contract above. */
     cbm_alloc_init();
@@ -2724,6 +2751,11 @@ int main(int argc, char **argv) {
          * dispatch is reached, so pre-dispatch WARN chatter is suppressed. */
         cbm_cli_diagnostics_configure(true, false);
     }
+#ifdef CBM_FORK_CLI_ONLY
+    if (argc >= 2 && strcmp(argv[1], "ui") == 0) {
+        return main_cli_only_ui(argc, argv);
+    }
+#endif
 
     cbm_mcp_tool_profile_t tool_profile = CBM_MCP_TOOL_PROFILE_ALL;
     if (role == CBM_DAEMON_PROCESS_MCP_CLIENT &&
@@ -2847,7 +2879,11 @@ int main(int argc, char **argv) {
                 coordination_failure, (why && why[0]) ? ": " : "", (why && why[0]) ? why : "");
             goto local_cli_cleanup;
         }
+#ifndef CBM_FORK_CLI_ONLY
+        /* Fork: only `ui` needs the HTTP server's binary path (cli_only_ui.c
+         * sets it), so the plain cbm-cli links no cbm_http_server_* setter. */
         cbm_http_server_set_binary_path(local_executable);
+#endif
 
 #ifdef CBM_FORK_CLI_ONLY
         /* Fork CLI-only single-process one-shot: no version_cohort admission, no

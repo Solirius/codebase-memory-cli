@@ -74,10 +74,19 @@ Available tools include: `index_repository`, `search_graph`, `query_graph` (Cyph
 
 ## 5. Graph UI (localhost only)
 
-The 3D graph visualization is served over HTTP on **`127.0.0.1:9749`** — loopback only, never a
-non-loopback interface. Build with `--with-ui` to bundle it. (In this fork the UI is started
-on-demand by the CLI rather than by a background daemon; the dedicated `ui` subcommand is tracked
-on the roadmap.)
+Build with `scripts/build.sh --cli-only --with-ui` (needs an existing `graph-ui/node_modules`; the
+build never fetches), then run:
+
+```bash
+build/c/codebase-memory-cli ui                 # http://127.0.0.1:9749, Ctrl-C to stop
+build/c/codebase-memory-cli ui --port 0 --format json
+# {"status":"listening","url":"http://127.0.0.1:54321"}
+```
+
+The server binds **`127.0.0.1` only** (no option changes the interface), runs in-process only while
+`ui` runs, and rejects foreign `Host`/`Origin` headers. A busy port prints
+`{"error":{"code":"port_in_use",...}}` and exits non-zero. The plain `--cli-only` binary contains no
+HTTP server: its `ui` prints `ui_not_built` and exits 2.
 
 ## Notes
 

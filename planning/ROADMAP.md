@@ -20,7 +20,7 @@ by registering an MCP server. It must stay easy to merge from upstream: every re
 | F2 | Split MCP engine from stdio/JSON-RPC transport | ✅ COMPLETED | Guards in `src/mcp/mcp.c` (3 blocks) and `mcp.h`; `verify-mcp-engine-split` PASS; quality gate PASS |
 | F3 | Daemon-free in-process CLI execution | ✅ COMPLETED | `run_cli` routed in-process under guard; `project_lock` kept, `version_cohort` dropped; quality gate WARN accepted with substitute evidence (E1 strace and E2 live-daemon diff were deferred) |
 | F4 | CLI-only build target & entry dispatch | ✅ COMPLETED (via new 01) | `cli-only.mk` `cbm-cli`, `scripts/build.sh --cli-only`, `verify-cli-only-link` PASS, main.c role guard, section-GC link isolation; smoke test `make -f Makefile.cbm test-cli-only` |
-| F5 | Loopback UI subcommand | ⬜ not started → **new 03** (reordered after the MCP removal so `/rpc` never ships) |
+| F5 | Loopback UI subcommand | ✅ COMPLETED (via new 03) | `cbm-cli-with-ui`, `codebase-memory-cli ui`, `verify-cli-only-no-http`, `test-cli-only-ui-live` |
 | F6 | No-network hardening | ⬜ not started → **new 04** |
 | F7 | Copilot CLI integration + quickstart | ⬜ not started → **new 05** |
 
@@ -47,7 +47,7 @@ Debt carried forward (each item has an owner below):
 |---|---|---|---|---|
 | 01 | `cli-only-dispatch-verification` | Finish old F4: smoke test (`tests/test_cli_only_smoke.sh`) for inert non-CLI argv, all 17 tools returning JSON, concurrent indexing serialized | F1–F3 (done) | COMPLETED |
 | 02 | `residual-mcp-surface-audit` | Remove `/rpc` and every MCP JSON-RPC router path (D-2); stop `install`/agent setup writing MCP server configs (D-5); rewire `graph-ui/src/api/rpc.ts` to plain `/api/*`; resolve D-3; nm/strings gate | 01 | COMPLETED |
-| 03 | `loopback-ui-subcommand` | Optional `cbm-cli-with-ui` build; `codebase-memory-cli ui [--port N]` starts the graph UI in-process, bound to 127.0.0.1 only; plain `cbm-cli` contains no HTTP code | 02 | PENDING |
+| 03 | `loopback-ui-subcommand` | Optional `cbm-cli-with-ui` build; `codebase-memory-cli ui [--port N]` starts the graph UI in-process, bound to 127.0.0.1 only; plain `cbm-cli` contains no HTTP code | 02 | COMPLETED (U7 manual pending) |
 | 04 | `no-network-hardening` | Compile out the GitHub update check; `security-network.sh` forbids all egress and every socket/bind/listen except the loopback UI; prune the allowlist; fork `security-cli` target; closes D-1 and D-4 | 03 | PENDING |
 | 05 | `copilot-cli-and-quickstart` | Copilot command-invocation recipes (VS Code, Visual Studio, JetBrains, Android Studio), wrapper script, verified quickstart and JSON shapes | 04 | PENDING |
 | 06 | `release-acceptance-gate` | One `make -f Makefile.cbm fork-acceptance` that runs the fork checks; upstream-merge rehearsal | 05 | PENDING |

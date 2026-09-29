@@ -18,6 +18,12 @@
 # so mixing guarded and unguarded objects is ABI-safe.
 #
 # E8: CFLAGS_PROD with the test-seam define filtered out — never seams.
+#
+# Milestone 03: src/cli/cli_only_ui.c (fork-only file, never in PROD_SRCS)
+# provides `ui`. cbm-cli compiles it WITHOUT CBM_FORK_CLI_ONLY_UI, so `ui`
+# prints "built without UI" and the HTTP server is dead-stripped (verified by
+# verify-cli-only-no-http). cbm-cli-with-ui compiles it WITH the define and
+# links the embedded graph-ui bundle instead of embedded_stub.c.
 
 CLI_ONLY_BIN = $(BUILD_DIR)/codebase-memory-cli
 CLI_ONLY_DROPPED_DAEMON_SRCS = \
@@ -30,10 +36,6 @@ CLI_ONLY_DROPPED_DAEMON_SRCS = \
 CLI_ONLY_GUARDED_SRCS = src/cli/cli.c src/mcp/mcp.c src/ui/http_server.c
 CLI_ONLY_REST_SRCS = $(filter-out $(CLI_ONLY_GUARDED_SRCS) $(CLI_ONLY_DROPPED_DAEMON_SRCS),$(PROD_SRCS)) \
     $(EXTRACTION_SRCS) $(AC_LZ4_SRCS) $(ZSTD_SRCS) $(SQLITE_WRITER_SRC)
-CLI_ONLY_MAIN_OBJ = $(BUILD_DIR)/cli_only_main.o
-CLI_ONLY_CLI_OBJ = $(BUILD_DIR)/cli_only_cli.o
-CLI_ONLY_MCP_OBJ = $(BUILD_DIR)/cli_only_mcp.o
-CLI_ONLY_HTTP_OBJ = $(BUILD_DIR)/cli_only_http_server.o
 CLI_ONLY_SECTION_CFLAGS = -ffunction-sections -fdata-sections
 ifeq ($(shell uname -s),Darwin)
 CLI_ONLY_GC_LDFLAGS = -Wl,-dead_strip
@@ -58,22 +60,86 @@ CLI_ONLY_CFLAGS = $(filter-out -DCBM_ENABLE_TEST_SEAMS=1,$(CFLAGS_PROD)) $(CLI_O
 # upstream diff, so the relaxation stays per-TU instead.
 CLI_ONLY_MAIN_CFLAGS = $(CLI_ONLY_CFLAGS) -Wno-unused-function -Wno-unused-variable
 
-.PHONY: cbm-cli verify-cli-only-link
+CLI_ONLY_UI_SRC = src/cli/cli_only_ui.c
+CLI_ONLY_VENDORED = $(OBJS_VENDORED_PROD)
+CLI_ONLY_LDFLAGS = $(LDFLAGS)
+
+# $(call cli_only_link,<out-bin>,<obj-prefix>,<extra ui-TU cflags>,<rest srcs>,<extra objs>)
+define cli_only_link
+	@echo "=== $(1): compiling guarded edge TUs with -DCBM_FORK_CLI_ONLY=1 ==="
+	$(CC) $(CLI_ONLY_MAIN_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(2)main.o src/main.c
+	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(2)cli.o src/cli/cli.c
+	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(2)mcp.o src/mcp/mcp.c
+	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(2)http_server.o src/ui/http_server.c
+	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 $(3) -c -o $(2)ui_cmd.o $(CLI_ONLY_UI_SRC)
+	@echo "=== linking $(1) (daemon runtime/frontend dropped, section GC) ==="
+	$(CC) $(CLI_ONLY_CFLAGS) -o $(1) \
+		$(2)main.o $(2)cli.o $(2)mcp.o $(2)http_server.o $(2)ui_cmd.o \
+		$(4) \
+		$(CLI_ONLY_VENDORED) $(5) \
+		$(CLI_ONLY_LDFLAGS) $(CLI_ONLY_GC_LDFLAGS)
+	@rm -f $(2)main.o $(2)cli.o $(2)mcp.o $(2)http_server.o $(2)ui_cmd.o
+	@echo "Built: $(1)"
+endef
+
+.PHONY: cbm-cli cbm-cli-with-ui cbm-cli-with-ui-asan cli-only-embed verify-cli-only-link \
+        verify-cli-only-no-http test-cli-only-ui-live
 
 cbm-cli: $(OBJS_VENDORED_PROD) $(PROJECT_HDRS) | $(BUILD_DIR)
-	@echo "=== cbm-cli: compiling guarded edge TUs with -DCBM_FORK_CLI_ONLY=1 ==="
-	$(CC) $(CLI_ONLY_MAIN_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(CLI_ONLY_MAIN_OBJ) src/main.c
-	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(CLI_ONLY_CLI_OBJ) src/cli/cli.c
-	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(CLI_ONLY_MCP_OBJ) src/mcp/mcp.c
-	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(CLI_ONLY_HTTP_OBJ) src/ui/http_server.c
-	@echo "=== linking $(CLI_ONLY_BIN) (daemon runtime/frontend dropped, section GC) ==="
-	$(CC) $(CLI_ONLY_CFLAGS) -o $(CLI_ONLY_BIN) \
-		$(CLI_ONLY_MAIN_OBJ) $(CLI_ONLY_CLI_OBJ) $(CLI_ONLY_MCP_OBJ) $(CLI_ONLY_HTTP_OBJ) \
-		$(CLI_ONLY_REST_SRCS) \
-		$(OBJS_VENDORED_PROD) \
-		$(LDFLAGS) $(CLI_ONLY_GC_LDFLAGS)
-	@rm -f $(CLI_ONLY_MAIN_OBJ) $(CLI_ONLY_CLI_OBJ) $(CLI_ONLY_MCP_OBJ) $(CLI_ONLY_HTTP_OBJ)
-	@echo "Built: $(CLI_ONLY_BIN)"
+	$(call cli_only_link,$(CLI_ONLY_BIN),$(BUILD_DIR)/cli_only_,,$(CLI_ONLY_REST_SRCS),)
+
+# Milestone 03: optional graph-UI build. Same output name as cbm-cli (like
+# upstream cbm-with-ui); override CLI_ONLY_UI_BIN to keep both side by side.
+# The frontend build never fetches: it needs an existing graph-ui/node_modules
+# (`cd graph-ui && npm ci` once, outside the build).
+CLI_ONLY_UI_BIN ?= $(CLI_ONLY_BIN)
+CLI_ONLY_UI_EMBED_DIR = $(BUILD_DIR)/embedded
+CLI_ONLY_UI_REST_SRCS = $(subst src/ui/embedded_stub.c,src/ui/embedded_assets.c,$(CLI_ONLY_REST_SRCS))
+
+cli-only-embed:
+	@test -d graph-ui/node_modules || { echo "cbm-cli-with-ui: graph-ui/node_modules is missing; run 'cd graph-ui && npm ci' once (the fork build never fetches)"; exit 1; }
+	cd graph-ui && npm run build
+	scripts/embed-frontend.sh graph-ui/dist $(CLI_ONLY_UI_EMBED_DIR)
+
+cbm-cli-with-ui: cli-only-embed $(OBJS_VENDORED_PROD) $(PROJECT_HDRS) | $(BUILD_DIR)
+	$(call cli_only_link,$(CLI_ONLY_UI_BIN),$(BUILD_DIR)/cli_only_ui_,-DCBM_FORK_CLI_ONLY_UI=1,$(CLI_ONLY_UI_REST_SRCS),$(wildcard $(CLI_ONLY_UI_EMBED_DIR)/embed_*.o))
+
+# U5: ASan+UBSan variant of the UI binary for the live start/stop test only
+# (CRT allocator + sanitizer vendored objects, exactly like the test runner;
+# never seams, never shipped).
+CLI_ONLY_UI_ASAN_BIN = $(BUILD_DIR)/codebase-memory-cli-ui-asan
+cbm-cli-with-ui-asan: CLI_ONLY_CFLAGS = $(CFLAGS_TEST) $(CLI_ONLY_SECTION_CFLAGS)
+cbm-cli-with-ui-asan: CLI_ONLY_MAIN_CFLAGS = $(CFLAGS_TEST) $(CLI_ONLY_SECTION_CFLAGS) -Wno-unused-function -Wno-unused-variable
+cbm-cli-with-ui-asan: CLI_ONLY_VENDORED = $(OBJS_VENDORED_TEST)
+cbm-cli-with-ui-asan: CLI_ONLY_LDFLAGS = $(LDFLAGS_TEST)
+cbm-cli-with-ui-asan: cli-only-embed $(OBJS_VENDORED_TEST) $(PROJECT_HDRS) | $(BUILD_DIR)
+	$(call cli_only_link,$(CLI_ONLY_UI_ASAN_BIN),$(BUILD_DIR)/cli_only_uiasan_,-DCBM_FORK_CLI_ONLY_UI=1,$(CLI_ONLY_UI_REST_SRCS),$(wildcard $(CLI_ONLY_UI_EMBED_DIR)/embed_*.o))
+
+# Live UI test (U2–U6) against the ASan build, plus the plain-binary gate (U1).
+test-cli-only-ui-live: verify-cli-only-no-http cbm-cli-with-ui-asan
+	CBM_TEST_BINARY="$(CURDIR)/$(CLI_ONLY_UI_ASAN_BIN)" bash tests/test_cli_only_ui.sh
+
+# U1: the plain binary has no listener code. The only cbm_http_server_* symbol
+# allowed is the filesystem helper resolve_binary_path (used by main.c and the
+# index supervisor to locate the executable; no socket code).
+CLI_ONLY_NO_HTTP_IMPORTS = socket bind listen accept
+CLI_ONLY_NO_HTTP_ALLOWED = cbm_http_server_resolve_binary_path
+
+verify-cli-only-no-http: cbm-cli
+	@echo "=== verify-cli-only-no-http: nm $(CLI_ONLY_BIN) ==="
+	@fail=0; \
+	for s in $(CLI_ONLY_NO_HTTP_IMPORTS); do \
+		if nm -u "$(CLI_ONLY_BIN)" | sed 's/^ *U *//; s/^_//' | grep -qx "$$s"; then echo "  FAIL: imports $$s"; fail=1; \
+		else echo "  ok no import: $$s"; fi; \
+	done; \
+	hits=$$(nm "$(CLI_ONLY_BIN)" | awk '{sub(/^_/, "", $$NF); print $$NF}' | grep -E '^(cbm_http_server_|cbm_httpd_)' | grep -vx "$(CLI_ONLY_NO_HTTP_ALLOWED)"); \
+	if [ -n "$$hits" ]; then echo "  FAIL: HTTP server symbols linked:"; echo "$$hits" | sed 's/^/      /'; fail=1; \
+	else echo "  ok absent: cbm_http_server_* / cbm_httpd_* (except resolve_binary_path)"; fi; \
+	out=$$("$(CLI_ONLY_BIN)" ui --format json); rc=$$?; \
+	if [ $$rc -eq 2 ] && echo "$$out" | grep -q '"ui_not_built"'; then echo "  ok 'ui' refuses (rc=2, ui_not_built)"; \
+	else echo "  FAIL: 'ui' rc=$$rc out=$$out"; fail=1; fi; \
+	if [ $$fail -ne 0 ]; then exit 1; fi
+	@echo "verify-cli-only-no-http: PASS"
 
 # F4 link-isolation gate (E2, E8). Verification-only; not in default/prod.
 # Asserts on the linked binary: (a) no dropped daemon runtime/frontend symbols,

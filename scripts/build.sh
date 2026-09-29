@@ -4,6 +4,7 @@
 # Usage:
 #   scripts/build.sh                              # Standard binary
 #   scripts/build.sh --with-ui                    # Binary with the UI embedded
+#   scripts/build.sh --cli-only [--with-ui]       # Fork codebase-memory-cli (UI optional)
 #   scripts/build.sh --help                       # Full usage
 #   scripts/build.sh --version v0.8.0             # With version stamp
 #   scripts/build.sh --arch x86_64                # Force x86_64 build
@@ -19,7 +20,7 @@ cd "$ROOT"
 
 usage() {
     cat <<'EOF'
-Usage: scripts/build.sh [--with-ui | --cli-only] [--version V] [--arch ARCH] [VAR=VAL ...]
+Usage: scripts/build.sh [--with-ui | --cli-only [--with-ui]] [--version V] [--arch ARCH] [VAR=VAL ...]
 
 The canonical production-build entry: identical in local CI, PR CI, dry run
 and release. Always a CLEAN build of BUILD_DIR (build/c by default) — the
@@ -32,7 +33,10 @@ Options:
   --with-ui       Build the web UI as a content-addressed sidecar (needs node).
   --cli-only      Fork default: build codebase-memory-cli (make cbm-cli) with
                   CBM_FORK_CLI_ONLY: no daemon runtime, no MCP stdio server,
-                  never compiled with test seams.
+                  never compiled with test seams. Contains no HTTP code.
+                  With --with-ui: make cbm-cli-with-ui, adding the loopback
+                  graph UI (`codebase-memory-cli ui`). Needs an existing
+                  graph-ui/node_modules; the build itself never fetches.
   --version V     Stamp the version string (release venue passes the tag).
   --arch ARCH     Force target arch (arm64 | x86_64), e.g. under Rosetta.
   -h, --help      This text.
@@ -150,11 +154,6 @@ if [[ -n "$VERSION" ]]; then
     CFLAGS_EXTRA="-DCBM_VERSION=\"\\\"$CLEAN_VERSION\\\"\""
 fi
 
-if $WITH_UI && $CLI_ONLY; then
-    echo "build.sh: --with-ui and --cli-only are mutually exclusive." >&2
-    exit 2
-fi
-
 print_env "build.sh"
 echo "  ui=$WITH_UI cli_only=$CLI_ONLY version=${VERSION:-dev}"
 
@@ -166,7 +165,9 @@ cbm_remove_build_dir "$ROOT" "$BUILD_DIR"
 
 # Step 2: Build (Makefile applies $ARCHFLAGS for the target arch on macOS)
 if $CLI_ONLY; then
-    make -j"$NPROC" -f Makefile.cbm cbm-cli \
+    CLI_TARGET=cbm-cli
+    $WITH_UI && CLI_TARGET=cbm-cli-with-ui
+    make -j"$NPROC" -f Makefile.cbm "$CLI_TARGET" \
         CFLAGS_EXTRA="$CFLAGS_EXTRA" "${EXTRA_MAKE_ARGS[@]+"${EXTRA_MAKE_ARGS[@]}"}"
     echo "=== Build complete: ${BUILD_DIR}/codebase-memory-cli ==="
     exit 0
