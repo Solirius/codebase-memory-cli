@@ -61,6 +61,8 @@ CLI_ONLY_CFLAGS = $(filter-out -DCBM_ENABLE_TEST_SEAMS=1,$(CFLAGS_PROD)) $(CLI_O
 CLI_ONLY_MAIN_CFLAGS = $(CLI_ONLY_CFLAGS) -Wno-unused-function -Wno-unused-variable
 
 CLI_ONLY_UI_SRC = src/cli/cli_only_ui.c
+# Milestone 05: fork-only Copilot integration writer for `install` / `uninstall --copilot`.
+CLI_ONLY_INSTALL_SRC = src/cli/cli_only_install.c
 CLI_ONLY_VENDORED = $(OBJS_VENDORED_PROD)
 CLI_ONLY_LDFLAGS = $(LDFLAGS)
 
@@ -72,13 +74,14 @@ define cli_only_link
 	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(2)mcp.o src/mcp/mcp.c
 	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(2)http_server.o src/ui/http_server.c
 	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 $(3) -c -o $(2)ui_cmd.o $(CLI_ONLY_UI_SRC)
+	$(CC) $(CLI_ONLY_CFLAGS) -DCBM_FORK_CLI_ONLY=1 -c -o $(2)install_cmd.o $(CLI_ONLY_INSTALL_SRC)
 	@echo "=== linking $(1) (daemon runtime/frontend dropped, section GC) ==="
 	$(CC) $(CLI_ONLY_CFLAGS) -o $(1) \
-		$(2)main.o $(2)cli.o $(2)mcp.o $(2)http_server.o $(2)ui_cmd.o \
+		$(2)main.o $(2)cli.o $(2)mcp.o $(2)http_server.o $(2)ui_cmd.o $(2)install_cmd.o \
 		$(4) \
 		$(CLI_ONLY_VENDORED) $(5) \
 		$(CLI_ONLY_LDFLAGS) $(CLI_ONLY_GC_LDFLAGS)
-	@rm -f $(2)main.o $(2)cli.o $(2)mcp.o $(2)http_server.o $(2)ui_cmd.o
+	@rm -f $(2)main.o $(2)cli.o $(2)mcp.o $(2)http_server.o $(2)ui_cmd.o $(2)install_cmd.o
 	@echo "Built: $(1)"
 endef
 

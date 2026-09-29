@@ -1,126 +1,191 @@
-# Codebase Memory CLI — Build & Run Guide
+# Codebase Memory CLI: Build & Run Guide
 
-This guide walks through building this **pure-C11** project from source and using it as a local,
-network-free CLI to index a repository and query its code graph.
+This guide covers building the fork's `codebase-memory-cli` binary from source, indexing a
+repository, and reading the JSON it prints. For the shortest path, see
+[CLI_QUICKSTART.md](./CLI_QUICKSTART.md). For GitHub Copilot, see
+[COPILOT_CLI_INTEGRATION.md](./COPILOT_CLI_INTEGRATION.md).
 
-> **This is the CLI-only, no-MCP, no-network fork.** See "About this fork" in the top-level
-> [README](../README.md). The codebase was rewritten from Go to **pure C11** at upstream v0.5.0 —
-> there is no `go.mod`, no `cmd/`, no Cobra, and no `go build`. Everything is built with
-> `scripts/build.sh` / `Makefile.cbm`, and all third-party code (tree-sitter grammars, SQLite,
-> yyjson, mimalloc, …) is vendored and compiled in.
+> **This is the CLI-only fork: no MCP, no daemon, no network.** See "About this fork" in the
+> top-level [README](../README.md). The code is pure C11 (there is no Go toolchain). All
+> third-party code is vendored and compiled in.
 
-## Process Overview
+## Process overview
 
 ```mermaid
 flowchart TD
-    A[Clone the repo] --> B{Use the dev container?}
-    B -- Yes --> C[Reopen in Dev Container<br/>workspace mounted at /workspace]
-    B -- No --> D[Ensure C11 toolchain + make<br/>node only if you want the UI]
-    C --> E[Build: scripts/build.sh]
-    D --> E
-    E --> F[Binary at build/c/codebase-memory-mcp]
-    F --> G[cli --json index_repository]
-    G --> H[cli --json search_graph / get_architecture / trace_path]
-    H --> I[Inspect JSON output / open localhost UI]
+    A[Clone the repo] --> B[scripts/build.sh --cli-only]
+    B --> C[build/c/codebase-memory-cli]
+    C --> D[cli index_repository --repo-path DIR]
+    D --> E[cli search_graph / trace_path / get_architecture / query_graph / get_code_snippet --format json]
+    E --> F[Read JSON in scripts, editors or Copilot]
+    C -. optional --with-ui build .-> G[ui: graph viewer on 127.0.0.1]
 ```
 
-## Runbook
+## 1. Prerequisites
 
-### 1. Prerequisites
+- A C11 compiler (clang or gcc), `make` and `git`.
+- `node`, and an existing `graph-ui/node_modules`, **only** for the optional UI build.
+- No network access is needed to build or run.
 
-- A C11 compiler (clang or gcc) and `make`.
-- `node` **only** if you want to bundle the graph-viz UI (`--with-ui`).
-- No language runtime and no network access are needed to build or run.
+You can also use the bundled dev container. VS Code and JetBrains IDEs detect
+`.devcontainer/devcontainer.json`, and the workspace is mounted at `/workspace`.
 
-Optionally use the bundled dev container: JetBrains IDEs / VS Code detect
-`.devcontainer/devcontainer.json` and offer to reopen the project in the container, where the
-workspace is mounted at `/workspace`.
+## 2. Build
 
-### 2. Build the binary
+| Command | Output |
+|---|---|
+| `scripts/build.sh --cli-only` | `build/c/codebase-memory-cli`: no MCP, no daemon, no HTTP server |
+| `scripts/build.sh --cli-only --with-ui` | The same binary name, plus the `ui` command (127.0.0.1 only) |
+| `make -f Makefile.cbm test-cli-only` | Smoke test and install/uninstall round-trip for the CLI-only binary |
+| `make -f Makefile.cbm verify-cli-only-link` | Checks that no MCP router or daemon symbols are linked |
 
-```bash
-# Standard release build
-scripts/build.sh
-# Output: build/c/codebase-memory-mcp
+`scripts/build.sh` with no flags still builds the upstream `codebase-memory-mcp` binary. This fork
+does not ship that binary.
 
-# Or bundle the localhost graph UI (needs node)
-scripts/build.sh --with-ui
+## 3. Command shape
 
-# Equivalent make targets
-make -f Makefile.cbm cbm            # production binary
-make -f Makefile.cbm test           # build with ASan+UBSan and run the test suite
+```text
+codebase-memory-cli --help                         list commands and tools
+codebase-memory-cli cli [--quiet] <tool> [--flag value ...] [--format json]
+codebase-memory-cli cli <tool> --help              flags for one tool
+codebase-memory-cli ui [--port N] [--format json]  graph UI (UI builds only)
+codebase-memory-cli install [--project DIR]        Copilot command files (see Copilot guide)
+codebase-memory-cli uninstall --copilot [--project DIR]
 ```
 
-> **Fork roadmap:** the dedicated CLI-only artifact `codebase-memory-cli` — built via
-> `scripts/build.sh --cli-only` with the MCP server and coordination daemon compiled out behind the
-> `CBM_FORK_CLI_ONLY` guard — is tracked on the roadmap (`.claude/planning/active/ROADMAP.md`) and
-> not yet available. Use the standard binary and its `cli` subcommand below in the meantime; the
-> query behavior is the same.
+- `--format json` is a **per-tool** flag. It gives one stable JSON document on stdout. The default
+  `tree` format is a compact text form meant for people.
+- `index_repository`, `compare_graphs`, `delete_project` and `ingest_traces` always print JSON and
+  reject `--format`.
+- `--quiet` (before the tool name) silences progress and warnings on stderr.
+- `cli --json <tool>` prints the raw result envelope (`content`, `structuredContent`, `isError`).
+  Scripts should prefer `--format json`.
+- `scripts/cbm <tool> [flags]` runs `codebase-memory-cli cli --quiet <tool> [flags] --format json`.
+  It finds the binary through `$CBM_BIN`, then `PATH`, then `build/c/`.
 
-### 3. Discover the interface
+## 4. Index and query
 
-```bash
-build/c/codebase-memory-mcp --help
-build/c/codebase-memory-mcp cli <tool> --help
+```text
+codebase-memory-cli cli --quiet index_repository --repo-path /path/to/repo [--name NAME]
+codebase-memory-cli cli list_projects --format json
+codebase-memory-cli cli search_graph --project NAME --name-pattern 'regex' --format json
+codebase-memory-cli cli trace_path --project NAME --function-name FN --direction inbound --format json
+codebase-memory-cli cli get_architecture --project NAME --format json
+codebase-memory-cli cli query_graph --project NAME --query 'MATCH ... RETURN ...' --format json
+codebase-memory-cli cli get_code_snippet --project NAME --qualified-name QN --format json
 ```
 
-### 4. Index a repository
+The project name defaults to a form of the repository path (`/home/me/app` becomes
+`home-me-app`). `list_projects` shows it.
 
-```bash
-cd /path/to/your/repo
-/path/to/build/c/codebase-memory-mcp cli --json index_repository
+## JSON output reference
+
+All examples below were captured from the two-function demo in the quickstart (`main.c`, where
+`main` calls `compute` and `compute` calls `add`), indexed with `--name demo`. Only absolute paths
+were shortened. `scripts/verify-docs.sh` re-runs each command marked `json-example` and checks that
+the keys and value types still match.
+
+### `index_repository`
+
+<!-- json-example: index_repository --repo-path "$DEMO" --name demo -->
+```json
+{"project":"demo","excluded":{"dirs":[".git"],"count":1,"truncated":false},"not_indexed_files_count":0,"skipped_count":0,"parse_partial_count":0,"parse_unusable_count":0,"nodes":7,"edges":8,"expected_nodes":7,"expected_edges":8,"adr_present":false,"adr_hint":"Project indexed. Consider creating an Architecture Decision Record: ...","artifact_present":false,"status":"indexed"}
 ```
 
-### 5. Query the code graph
+### `list_projects`
 
-```bash
-# Structural symbol search (preferred over grep for code)
-codebase-memory-mcp cli --json search_graph --query <symbol>
-
-# Module structure / architecture overview
-codebase-memory-mcp cli --json get_architecture
-
-# Callers/callees before changing a function
-codebase-memory-mcp cli --json trace_path --from <symbol>
-
-# Multi-hop structural questions via Cypher
-codebase-memory-mcp cli --json query_graph --query "<cypher>"
-
-# Exact source for one located symbol
-codebase-memory-mcp cli --json get_code_snippet --symbol <qualified-name>
+<!-- json-example: list_projects -->
+```json
+{"projects":[{"name":"demo","root_path":"/path/to/demo","branch":"main"}],"total":1,"offset":0,"limit":50,"returned":1,"has_more":false}
 ```
 
-### 6. Inspect output
+### `search_graph`
 
-`cli --json <tool>` prints the raw result envelope; most tools also accept `--format json` for a
-stable per-tool JSON object. Pipe into `jq` for scripting:
+Results are grouped by file. The qualified name of each row is `qn_prefix + "." + name`, and the
+`cols` array names each position in `rows`.
 
-```bash
-codebase-memory-mcp cli --json get_architecture | jq '.'
+<!-- json-example: search_graph --project demo --name-pattern compute -->
+```json
+{"qn_rule":"qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name","cols":["name","label","lines","in","out"],"groups":[{"qn_prefix":"demo.main","file":"main.c","rows":[["compute","Function","5-5",1,1]]}],"total":1,"returned":1,"count":1,"has_more":false,"truncated":false}
 ```
 
-### 7. Graph UI (localhost only)
+### `trace_path`
 
-Build with `scripts/build.sh --cli-only --with-ui` (needs an existing `graph-ui/node_modules`; the
-build never fetches), then run:
+`hop` is the call distance from the traced function: `compute` calls `add` directly, and `main`
+reaches it through `compute`.
 
-```bash
-build/c/codebase-memory-cli ui                 # http://127.0.0.1:9749, Ctrl-C to stop
-build/c/codebase-memory-cli ui --port 0 --format json
-# {"status":"listening","url":"http://127.0.0.1:54321"}
+<!-- json-example: trace_path --project demo --function-name add --direction inbound -->
+```json
+{"function":"add","direction":"inbound","callers_total":2,"callers_total_relation":"eq","callers":{"qn_rule":"qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name","cols":["name","hop"],"groups":[{"qn_prefix":"demo.main","rows":[["compute",1],["main",2]]}]}}
 ```
 
-The server binds **`127.0.0.1` only** (no option changes the interface), runs in-process only while
-`ui` runs, and rejects foreign `Host`/`Origin` headers. A busy port prints
-`{"error":{"code":"port_in_use",...}}` and exits non-zero. The plain `--cli-only` binary contains no
-HTTP server: its `ui` prints `ui_not_built` and exits 2.
+### `get_architecture`
+
+<!-- json-example: get_architecture --project demo -->
+```json
+{"project":"demo","aspects_hint":"Summary view (default). ...","total_nodes":7,"total_edges":8,"node_labels":{"cols":["label","count"],"rows":[["Function",3],["Branch",1],["File",1],["Module",1],["Project",1]]},"edge_types":{"cols":["type","count"],"rows":[["DEFINES",4],["CALLS",2],["CONTAINS_FILE",1],["HAS_BRANCH",1]]},"languages":{"cols":["language","files"],"rows":[["C",1]]},"packages":{"cols":["name","nodes","fan_in","fan_out"],"rows":[["main",3,0,0]]},"entry_points":{"cols":["qn","file"],"rows":[["demo.main.main","main.c"]]}}
+```
+
+### `query_graph`
+
+<!-- json-example: query_graph --project demo --query 'MATCH (f:Function)-[:CALLS]->(g:Function) RETURN f.name, g.name' -->
+```json
+{"columns":["f.name","g.name"],"rows":[["compute","add"],["main","compute"]],"returned":2,"total":2,"total_relation":"eq","has_more":false,"truncated":false}
+```
+
+### `get_code_snippet`
+
+<!-- json-example: get_code_snippet --project demo --qualified-name compute -->
+```json
+{"name":"compute","qualified_name":"demo.main.compute","label":"Function","file_path":"/path/to/demo/main.c","start_line":5,"end_line":5,"source_mode":"full","source":"int compute(int x) { return add(x, 1); }\n","match_method":"suffix","callers":1,"callees":1}
+```
+
+### Errors
+
+A tool error prints one JSON object with an `error` string on **stderr** (stdout stays empty),
+usually with a `hint`, and exits with status **1**:
+
+<!-- json-example: search_graph --project no-such-project --name-pattern x -->
+```json
+{"error":"project not found or not indexed","hint":"Use list_projects to see all indexed projects, then pass it as the \"project\" argument.","available_projects":["demo"],"count":1}
+```
+
+Errors in the command line itself (an unknown tool, an unknown flag or a missing required flag) are
+printed as plain text on **stderr**, with exit status 1:
+
+```text
+$ codebase-memory-cli cli nope_tool
+unknown tool: nope_tool
+$ codebase-memory-cli cli search_graph --bogus 1
+error: unknown flag --bogus for this tool — run 'cli search_graph --help' for the supported flags
+```
+
+Fork-level refusals (`update` is not available in this build, exit 1) print `{"error":"..."}` on stdout.
+`ui` uses a nested object, and its exit status is 2:
+
+```text
+$ codebase-memory-cli ui --format json        # plain --cli-only build
+{"error":{"code":"ui_not_built","message":"built without UI; rebuild with scripts/build.sh --cli-only --with-ui"}}
+```
+
+## 5. Graph UI (localhost only)
+
+In a `--with-ui` build:
+
+```text
+$ codebase-memory-cli ui --port 0 --format json
+{"status":"listening","url":"http://127.0.0.1:54321"}
+```
+
+Without `--port`, the UI uses port 9749, and without `--format json` it prints a one-line text
+message. It binds `127.0.0.1` only, and no option changes the interface. It runs in-process only
+while the command runs; Ctrl-C stops it. It rejects foreign `Host` and `Origin` headers. A busy
+port prints `{"error":{"code":"port_in_use",...}}` and exits non-zero.
 
 ## Notes
 
-- This fork makes **no outbound network connections** — no update checks, no telemetry. That
-  property is enforced by the project's security audit (`make -f Makefile.cbm security`), which the
-  fork tightens to forbid any non-loopback egress.
-- The only listening socket is the opt-in localhost graph UI. There is no MCP server and no daemon
-  socket.
-- Confirm exact subcommand names/flags with `--help`; the tool list and per-tool arguments are the
-  source of truth.
+- The binary makes **no outbound network connections**: no update checks and no telemetry.
+  `make -f Makefile.cbm verify-cli-only-no-http` checks that the plain binary imports no socket or
+  resolver functions.
+- Every command runs once and exits. There is no background service to start or stop.
+- `--help` is the source of truth for tool names and flags.

@@ -161,7 +161,8 @@ done
 # ── M7 / TEST-6: help and install/uninstall output never advise MCP setup ─
 MCP_SETUP_RE='mcp server|mcpServers|\.mcp\.json|claude mcp add'
 for argv in "--help" "-h" "cli --help" "install --help" "uninstall --help" \
-            "update --help" "config --help" "install" "uninstall --dry-run -y"; do
+            "update --help" "config --help" "install --dry-run" "uninstall --dry-run -y" \
+            "uninstall --copilot --dry-run"; do
   # shellcheck disable=SC2086  # argv is a deliberate word list
   run_bounded 10 "$WORK/o" "$WORK/e" null $argv
   # Removal reports name the file they edited; they are not setup advice.
@@ -171,14 +172,14 @@ for argv in "--help" "-h" "cli --help" "install --help" "uninstall --help" \
   else ok "'$argv' output MCP-setup free (rc=$RC)"; fi
 done
 
-# install is refused in the fork, so top-level help must not advertise it or
-# the agent-client registration surfaces it would configure.
-INSTALL_ADVERT_RE='codebase-memory-[a-z]+ install|client surfaces|MCP boundaries'
+# Milestone 05: fork `install` only writes Copilot command files, so help may
+# advertise it, but never the upstream agent-client registration surfaces.
+INSTALL_ADVERT_RE='--clients|--skip-config|client surfaces|MCP boundaries'
 for argv in "--help" "-h"; do
   run_bounded 10 "$WORK/o" "$WORK/e" null $argv
-  hits="$(cat "$WORK/o" "$WORK/e" | grep -iE "$INSTALL_ADVERT_RE")"
-  if [[ -n $hits ]]; then fail "'$argv' advertises install: $(echo "$hits" | head -2)"
-  else ok "'$argv' does not advertise install"; fi
+  hits="$(cat "$WORK/o" "$WORK/e" | grep -iE -e "$INSTALL_ADVERT_RE")"
+  if [[ -n $hits ]]; then fail "'$argv' advertises agent-client install: $(echo "$hits" | head -2)"
+  else ok "'$argv' does not advertise agent-client install"; fi
 done
 
 # ── Artifacts ────────────────────────────────────────────────────────────

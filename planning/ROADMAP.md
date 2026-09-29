@@ -22,7 +22,7 @@ by registering an MCP server. It must stay easy to merge from upstream: every re
 | F4 | CLI-only build target & entry dispatch | ✅ COMPLETED (via new 01) | `cli-only.mk` `cbm-cli`, `scripts/build.sh --cli-only`, `verify-cli-only-link` PASS, main.c role guard, section-GC link isolation; smoke test `make -f Makefile.cbm test-cli-only` |
 | F5 | Loopback UI subcommand | ✅ COMPLETED (via new 03) | `cbm-cli-with-ui`, `codebase-memory-cli ui`, `verify-cli-only-no-http`, `test-cli-only-ui-live` |
 | F6 | No-network hardening | ✅ COMPLETED (via new 04, light scope) | `update` refused; nm import check |
-| F7 | Copilot CLI integration + quickstart | ⬜ not started → **new 05** |
+| F7 | Copilot CLI integration + quickstart | ✅ COMPLETED (via new 05; Q5 manual transcript open) | `install`/`uninstall --copilot`, `scripts/cbm`, `scripts/verify-docs.sh` |
 
 Debt carried forward (each item has an owner below):
 - **D-1** F3 E1 (dynamic strace no-network proof) and E2 (daemon-vs-guarded byte diff) were only
@@ -49,7 +49,7 @@ Debt carried forward (each item has an owner below):
 | 02 | `residual-mcp-surface-audit` | Remove `/rpc` and every MCP JSON-RPC router path (D-2); stop `install`/agent setup writing MCP server configs (D-5); rewire `graph-ui/src/api/rpc.ts` to plain `/api/*`; resolve D-3; nm/strings gate | 01 | COMPLETED |
 | 03 | `loopback-ui-subcommand` | Optional `cbm-cli-with-ui` build; `codebase-memory-cli ui [--port N]` starts the graph UI in-process, bound to 127.0.0.1 only; plain `cbm-cli` contains no HTTP code | 02 | COMPLETED |
 | 04 | `no-network-hardening` | Light: `update` refused in fork; plain binary must not import socket/connect/resolver symbols (nm) | 03 | COMPLETED |
-| 05 | `copilot-cli-and-quickstart` | Copilot command-invocation recipes (VS Code, Visual Studio, JetBrains, Android Studio), wrapper script, verified quickstart and JSON shapes | 04 | PENDING |
+| 05 | `copilot-cli-and-quickstart` | Copilot command-invocation recipes (VS Code, Visual Studio, JetBrains, Android Studio), wrapper script, verified quickstart and JSON shapes | 04 | COMPLETED (Q5 manual open) |
 | 06 | `release-acceptance-gate` | One `make -f Makefile.cbm fork-acceptance` that runs the fork checks; upstream-merge rehearsal | 05 | PENDING |
 
 ## 4. Global Invariants (apply to every milestone)

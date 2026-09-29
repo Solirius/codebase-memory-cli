@@ -7,6 +7,9 @@
 #include "cli/agent_clients.h"
 #include "cli/agent_profiles.h"
 #include "cli/cli.h"
+#ifdef CBM_FORK_CLI_ONLY
+#include "cli/cli_only_install.h"
+#endif
 #include "cli/activation_transaction.h"
 #include "cli/config_json_like.h"
 #include "cli/config_text_edit.h"
@@ -10600,14 +10603,9 @@ static int cli_install_activate(void *opaque) {
 
 int cbm_cmd_install(int argc, char **argv) {
 #ifdef CBM_FORK_CLI_ONLY
-    /* CLI-only build: no agent MCP registration. Refuse before any argument
-     * parsing or filesystem access (milestone 05 adds the replacement). */
-    (void)argc;
-    (void)argv;
-    (void)fputs("{\"error\":\"install is not available in the CLI-only build; see docs "
-                "(milestone 05)\"}\n",
-                stdout);
-    return CLI_TRUE;
+    /* CLI-only build: no agent MCP registration. `install` only writes the
+     * command-based Copilot integration files into one repository. */
+    return cbm_cli_only_copilot_main(argc, argv, false);
 #endif
     parse_auto_answer(argc, argv);
     bool dry_run = false;
@@ -12321,6 +12319,12 @@ static int cli_uninstall_activate(void *opaque) {
 }
 
 int cbm_cmd_uninstall(int argc, char **argv) {
+#ifdef CBM_FORK_CLI_ONLY
+    /* `uninstall --copilot` removes only the files `install` wrote. */
+    if (cbm_cli_only_copilot_requested(argc, argv)) {
+        return cbm_cli_only_copilot_main(argc, argv, true);
+    }
+#endif
     /* `uninstall --help` used to UNINSTALL.
      *
      * The top-level dispatcher matches the subcommand at argv[1] and hands the

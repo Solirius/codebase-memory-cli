@@ -42,14 +42,14 @@ High-quality parsing through [tree-sitter](https://tree-sitter.github.io/tree-si
 - ❌ **No outbound network** — no update checks, no telemetry. All processing is 100% local, and this is enforced by an auditable security gate.
 
 **What is kept:**
-- ✅ **All the code-graph tools**, exposed as `codebase-memory-cli cli --json <tool> --format json`.
+- ✅ **All the code-graph tools**, exposed as `codebase-memory-cli cli <tool> [--flags] --format json`.
 - ✅ **The 3D graph-viz UI**, started on demand by the CLI and bound to **`127.0.0.1` only** — never a non-loopback interface. It is a local viewer, not remote networking or MCP.
 
-**How you use it with GitHub Copilot:** because this fork is *not* an MCP server, Copilot (VS Code, Visual Studio, JetBrains/IntelliJ, Android Studio) drives it by **invoking the CLI as commands** from its agent/terminal — not through an `.mcp.json` entry. Copilot's native external-tool protocol *is* MCP, so this integration is command-driven by design.
+**How you use it with GitHub Copilot:** this fork is *not* an MCP server. Copilot (VS Code, Visual Studio, JetBrains/IntelliJ, Android Studio, Copilot CLI) drives it by **running the CLI as terminal commands** from its agent. Copilot's native external-tool protocol *is* MCP, so this integration is command-driven by design. `codebase-memory-cli install` writes the Copilot instructions, prompt files and VS Code tasks into a repository, and `uninstall --copilot` removes them. See [`docs/COPILOT_CLI_INTEGRATION.md`](docs/COPILOT_CLI_INTEGRATION.md).
 
 **Upstream-mergeable:** every removal lives behind an additive `CBM_FORK_CLI_ONLY` compile guard; the shared core (`src/foundation`, `src/store`, `src/cypher`, `src/pipeline`, `internal/cbm`) is left untouched so upstream language/pipeline improvements keep flowing in via `git pull`.
 
-> **Status:** this fork is being built out feature-by-feature (see `.claude/planning/active/ROADMAP.md`). Until the `--cli-only` build target lands, build with the standard commands below; the CLI-only target, the `ui` subcommand, and the hardened no-network security gate are tracked on the roadmap. Build-and-run details: [`docs/CLI_QUICKSTART.md`](docs/CLI_QUICKSTART.md) and [`docs/CLI_BUILD_RUN_GUIDE.md`](docs/CLI_BUILD_RUN_GUIDE.md).
+> **Build and run:** `scripts/build.sh --cli-only` produces `build/c/codebase-memory-cli` (add `--with-ui` for the loopback graph UI). `scripts/cbm <tool> [flags]` is a thin JSON wrapper. See [`docs/CLI_QUICKSTART.md`](docs/CLI_QUICKSTART.md) (verified by `scripts/verify-docs.sh`) and [`docs/CLI_BUILD_RUN_GUIDE.md`](docs/CLI_BUILD_RUN_GUIDE.md) (JSON shapes and error shape).
 
 ---
 

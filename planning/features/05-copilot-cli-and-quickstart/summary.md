@@ -1,6 +1,6 @@
 # 05 — `copilot-cli-and-quickstart`
 
-**Milestone:** 05 of 06 | **Status:** PENDING | **Carries over:** old F7
+**Milestone:** 05 of 06 | **Status:** COMPLETED (Q5 manual transcript open) | **Carries over:** old F7
 
 ## 1. Objective & Rationale
 This milestone makes the finished binary easy to adopt from GitHub Copilot without MCP. Copilot's

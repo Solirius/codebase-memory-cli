@@ -1069,6 +1069,13 @@ static void print_help(void) {
     printf("                                      [--clients=<tokens>]  Run "
            "'install --clients' to list tokens\n");
 #endif
+#ifdef CBM_FORK_CLI_ONLY
+    printf("  codebase-memory-mcp install [--project DIR] [--dry-run]\n");
+    printf("                                      Write Copilot command-based integration "
+           "files into DIR\n");
+    printf("  codebase-memory-mcp uninstall --copilot [--project DIR] [--dry-run]\n");
+    printf("                                      Remove those files again\n");
+#endif
     printf("  codebase-memory-mcp uninstall [-y|-n] [--dry-run]\n");
 #ifndef CBM_FORK_CLI_ONLY
     printf("  codebase-memory-mcp update [-y|-n]\n");

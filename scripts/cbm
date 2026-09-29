@@ -1,0 +1,67 @@
+#!/bin/sh
+# cbm — thin wrapper around `codebase-memory-cli cli <tool> ... --format json`.
+#
+#   cbm <tool> [--flag value ...]   run one graph tool, JSON on stdout
+#   cbm ui [--port N]               graph UI on 127.0.0.1 (UI builds only)
+#   cbm install|uninstall ...       passed through unchanged
+#
+# Adds `--quiet` (no progress chatter on stderr) and `--format json` when the
+# tool supports it and you did not pass --format, --args-file or raw JSON.
+# Binary: $CBM_BIN, else `codebase-memory-cli` on PATH, else the repo build.
+# Exit status is the binary's (0 ok; 1 tool error, JSON "error" object on stderr).
+set -eu
+
+usage() {
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+resolve_bin() {
+    if [ -n "${CBM_BIN:-}" ]; then
+        printf '%s\n' "$CBM_BIN"
+        return
+    fi
+    if command -v codebase-memory-cli >/dev/null 2>&1; then
+        command -v codebase-memory-cli
+        return
+    fi
+    here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+    printf '%s\n' "$here/../build/c/codebase-memory-cli"
+}
+
+if [ "$#" -eq 0 ]; then
+    usage >&2
+    exit 2
+fi
+
+BIN=$(resolve_bin)
+if [ ! -x "$BIN" ]; then
+    printf '{"error":"codebase-memory-cli binary not found","hint":"set CBM_BIN or run scripts/build.sh --cli-only"}\n'
+    exit 1
+fi
+
+tool=$1
+case "$tool" in
+    -h | --help | help)
+        usage
+        exit 0
+        ;;
+    ui | install | uninstall | config | --version)
+        exec "$BIN" "$@"
+        ;;
+esac
+shift
+
+add_format=1
+case "$tool" in
+    index_repository | compare_graphs | delete_project | ingest_traces) add_format=0 ;;
+esac
+for arg in "$@"; do
+    case "$arg" in
+        --format | --format=* | --args-file | --args-file=* | --help | -h | \{*) add_format=0 ;;
+    esac
+done
+
+if [ "$add_format" -eq 1 ]; then
+    exec "$BIN" cli --quiet "$tool" "$@" --format json
+fi
+exec "$BIN" cli --quiet "$tool" "$@"

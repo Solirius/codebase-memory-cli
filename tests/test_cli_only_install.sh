@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Milestone 02 (spec CLI-2, CLI-3, FAIL-9, FAIL-10, TEST-5): in the CLI-only
-# binary `install` refuses before touching the filesystem, and `uninstall`
-# only REMOVES existing codebase-memory-mcp entries.
+# Milestone 02 (spec CLI-3, FAIL-10, TEST-5): in the CLI-only binary
+# `uninstall` only REMOVES existing codebase-memory-mcp entries.
+# Milestone 05 (Q6): `install` writes only the command-based Copilot files into
+# a project directory (never $HOME, never an MCP registration), is idempotent,
+# and `uninstall --copilot` removes exactly those files again.
 # All state lives in a mktemp HOME removed by trap; the real $HOME is never
 # touched. Needs python3 (stdlib).
 set -uo pipefail
@@ -22,6 +24,7 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/cbm-cli-only-install.XXXXXX")" || { echo "mkt
 trap '[[ -n "${KEEP:-}" ]] || { chmod -R u+w "$WORK" 2>/dev/null; rm -rf "$WORK"; }' EXIT
 export HOME="$WORK/home" TMPDIR="$WORK/tmp" CBM_CACHE_DIR="$WORK/cache"
 export XDG_CONFIG_HOME="$HOME/.config" XDG_CACHE_HOME="$HOME/.cache" LC_ALL=C
+export PYTHONDONTWRITEBYTECODE=1  # the JSON checks must not seed python caches under $HOME
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 [[ "$HOME" != "$REAL_HOME" ]] || { echo "refusing: HOME is the real home" >&2; exit 2; }
 mkdir -p "$HOME" "$TMPDIR" "$CBM_CACHE_DIR"
@@ -30,7 +33,6 @@ FAILS=0
 ok()   { echo "ok   $*"; }
 fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }
 
-EXPECTED_ERR='{"error":"install is not available in the CLI-only build; see docs (milestone 05)"}'
 PATTERN='mcpServers|"mcp"|\.mcp\.json|codebase-memory-mcp'
 
 # ── Fixture: client detection dirs + configs for every client surface ──────
@@ -95,19 +97,60 @@ PY
 # matches OUT: every "file:line" under $HOME matching PATTERN.
 matches() { (cd "$HOME" && grep -rnE "$PATTERN" . 2>/dev/null | sed 's/^\([^:]*\):[0-9]*:/\1:/' | sort -u) >"$1"; }
 
-# ── install refuses and writes nothing (CLI-2, FAIL-9) ─────────────────────
+# ── install → uninstall --copilot round-trip (milestone 05, Q6) ───────────
 snapshot "$WORK/before"
 matches "$WORK/m-baseline"
-for argv in "install" "install -y" "install --dry-run" "install --force -y"; do
-  # shellcheck disable=SC2086
-  "$BIN" $argv </dev/null >"$WORK/out" 2>"$WORK/err"; rc=$?
-  snapshot "$WORK/after"
-  if ((rc == 0)); then fail "'$argv' exited 0"; else ok "'$argv' exit=$rc"; fi
-  if [[ "$(cat "$WORK/out")" == "$EXPECTED_ERR" ]]; then ok "'$argv' prints CLI-2 JSON error"
-  else fail "'$argv' stdout: $(head -c 300 "$WORK/out")"; fi
-  if diff -q "$WORK/before" "$WORK/after" >/dev/null; then ok "'$argv' left \$HOME byte- and mtime-identical"
-  else fail "'$argv' modified \$HOME:"; diff "$WORK/before" "$WORK/after" | head -10; fi
-done
+PROJ="$WORK/proj"
+mkdir -p "$PROJ/.github"
+printf '# Team notes\nKeep this line.\n' >"$PROJ/.github/copilot-instructions.md"
+cp "$PROJ/.github/copilot-instructions.md" "$WORK/instructions.orig"
+MANAGED=(.github/prompts/cbm-who-calls.prompt.md .github/prompts/cbm-architecture.prompt.md
+         .github/prompts/cbm-find-symbol.prompt.md .vscode/tasks.json)
+project_mcp_hits() { grep -rlE 'mcpServers|mcp\.json|"mcp"|0\.0\.0\.0|codebase-memory-mcp' "$PROJ" 2>/dev/null; }
+
+"$BIN" install --project "$PROJ" </dev/null >"$WORK/out" 2>"$WORK/err"; rc=$?
+if ((rc == 0)) && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(d["status"]!="installed")' "$WORK/out"
+then ok "install exit=0 status=installed"; else fail "install rc=$rc: $(head -c 300 "$WORK/out") $(head -c 300 "$WORK/err")"; fi
+missing=""; for f in "${MANAGED[@]}"; do [[ -f "$PROJ/$f" ]] || missing+=" $f"; done
+[[ -z $missing ]] && ok "install created every managed file" || fail "install missing:$missing"
+if head -2 "$PROJ/.github/copilot-instructions.md" | cmp -s - "$WORK/instructions.orig" &&
+   grep -q 'codebase-memory-cli:begin' "$PROJ/.github/copilot-instructions.md"; then
+  ok "install appended the managed section and kept user text"
+else fail "copilot-instructions.md not appended correctly"; fi
+hits="$(project_mcp_hits)"
+[[ -z $hits ]] && ok "installed files contain no MCP registration or 0.0.0.0" || fail "MCP text in: $hits"
+snapshot "$WORK/after"
+if diff -q "$WORK/before" "$WORK/after" >/dev/null; then ok "install left \$HOME byte- and mtime-identical"
+else fail "install modified \$HOME:"; diff "$WORK/before" "$WORK/after" | head -10; fi
+
+(cd "$PROJ" && find . -type f -exec shasum {} + | sort) >"$WORK/proj1"
+(cd "$PROJ" && "$BIN" install </dev/null >"$WORK/out2" 2>&1); rc=$?
+(cd "$PROJ" && find . -type f -exec shasum {} + | sort) >"$WORK/proj2"
+if ((rc == 0)) && cmp -s "$WORK/proj1" "$WORK/proj2" && ! grep -qE '"action":"(created|updated|appended)"' "$WORK/out2"
+then ok "second install (cwd) is a no-op"; else fail "second install changed files or rc=$rc"; fi
+
+rm -f "$PROJ/.vscode/tasks.json"; echo '{"version":"2.0.0","tasks":[]}' >"$PROJ/.vscode/tasks.json"
+"$BIN" install --project "$PROJ" </dev/null >"$WORK/out3" 2>&1
+if grep -q '{"version":"2.0.0","tasks":\[\]}' "$PROJ/.vscode/tasks.json" && grep -q '"skipped"' "$WORK/out3"
+then ok "install skips a user-owned tasks.json"; else fail "install touched a user-owned tasks.json"; fi
+
+"$BIN" install --project "$PROJ" --dry-run </dev/null >/dev/null 2>&1
+"$BIN" uninstall --copilot --project "$PROJ" </dev/null >"$WORK/uout" 2>&1; rc=$?
+((rc == 0)) && ok "uninstall --copilot exit=0" || fail "uninstall --copilot rc=$rc: $(head -c 300 "$WORK/uout")"
+left=""; for f in "${MANAGED[@]:0:3}"; do [[ -e "$PROJ/$f" ]] && left+=" $f"; done
+[[ -z $left ]] && ok "uninstall --copilot removed the prompt files" || fail "left behind:$left"
+[[ -f "$PROJ/.vscode/tasks.json" ]] && ok "uninstall --copilot kept the user-owned tasks.json" || fail "user tasks.json removed"
+cmp -s "$PROJ/.github/copilot-instructions.md" "$WORK/instructions.orig" &&
+  ok "copilot-instructions.md restored byte-identical" || fail "copilot-instructions.md not restored"
+[[ ! -d "$PROJ/.github/prompts" ]] && ok "empty prompts dir removed" || fail "prompts dir left behind"
+snapshot "$WORK/after"
+if diff -q "$WORK/before" "$WORK/after" >/dev/null; then ok "round-trip never touched \$HOME"
+else fail "round-trip modified \$HOME"; fi
+EMPTY="$WORK/empty-proj"; mkdir -p "$EMPTY"
+"$BIN" install --project "$EMPTY" >/dev/null 2>&1 && "$BIN" uninstall --copilot --project "$EMPTY" >/dev/null 2>&1
+[[ -z "$(ls -A "$EMPTY")" ]] && ok "round-trip on an empty project leaves it empty" || fail "leftovers: $(ls -A "$EMPTY")"
+"$BIN" install --bogus >"$WORK/out" 2>&1; rc=$?
+((rc == 2)) && grep -q '"error"' "$WORK/out" && ok "unknown install option -> rc=2 JSON error" || fail "bad option rc=$rc"
 
 # ── uninstall with no upstream entry writes nothing (FAIL-10) ──────────────
 CLEAN="$WORK/clean-home"
