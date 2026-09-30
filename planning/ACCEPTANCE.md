@@ -8,7 +8,7 @@ Evidence for milestone 06 (`release-acceptance-gate`). Regenerate with
 
 | Field | Value |
 |---|---|
-| Commit | `da7dfc16` + shellcheck clean-up of `scripts/fork-acceptance.sh` |
+| Commit | `0666fb81` (after the A4 review fixes) |
 | Host | macOS, Darwin arm64, GNU Make 3.81, bash 3.2 |
 | Date | 2026-09-30 |
 | Command | `FORK_ACCEPTANCE_STRICT=1 make -f Makefile.cbm fork-acceptance` |
