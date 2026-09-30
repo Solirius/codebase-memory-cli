@@ -73,13 +73,49 @@ Upstream files touched since the base: `src/cli/cli.c`, `src/main.c`, `src/mcp/m
 components/hooks that call it); docs, planning and agent-harness files. Milestone 06 changes no
 `src/` file.
 
+## A4 review
+
+| Field | Value |
+|---|---|
+| Reviewer | GitHub Copilot agent (automated review); human sign-off pending |
+| Date | 2026-09-30 |
+| Range | `git diff 2f0e35e1..HEAD` (milestone 06) |
+| Verdict | **PENDING SIGN-OFF**. A human changes this to PASS. |
+
+Findings and fixes:
+
+1. `scripts/fork-acceptance.sh` A6b: a curl failure (HTTP `000`, UI down) was counted as "no JSON-RPC
+   reply", so a crashed UI could falsely PASS. **Fixed:** `000` now fails the step. `UIBIN A6b` re-run: PASS.
+2. `scripts/fork-acceptance.sh`: a `FORK_ACCEPTANCE_ONLY` run deleted every step's log, including evidence
+   from the last full run. **Fixed:** partial runs keep the other logs. The full strict run in R5
+   regenerates every log.
+3. `scripts/fork-merge-rehearsal.sh`: when acceptance failed, the script exited with make's rc (2), which
+   clashes with the documented "2 = usage". **Fixed:** it now exits 1.
+
+Checked, no change needed:
+- Fail-fast: every step stops the gate on a non-zero rc. `step` runs each step in a subshell, so HOME,
+  TMPDIR and the cache never leak. Scratch space is `mktemp -d build/c/fork-acceptance/work.XXXXXX`,
+  and the script removes it on exit.
+- bash 3.2: no associative arrays, `mapfile` or `${var,,}`. Empty arrays are never expanded under `set -u`.
+  `shellcheck -S warning` is clean for both scripts.
+- Rehearsal: it never pushes. It merges only in a throwaway `build/c/merge-rehearsal-*` worktree on a new
+  branch, which the EXIT trap removes (unless `--keep`). The user's branch and tree are never touched.
+- `cli-only.mk` `fork-acceptance`: additive `.PHONY` target, not a prerequisite of any other target.
+- `Makefile.cbm` D-6: only `cd $(CURDIR)` → `cd "$(CURDIR)"`, so behaviour changes only for paths that
+  contain spaces.
+
 ## Closed debt
 
 - **D-6** closed: every `cd $(CURDIR)` in `Makefile.cbm` is now `cd "$(CURDIR)"`; `make test-par`
   (G4) passes from a path that contains a space.
 
+## Deferred
+
+- **A1 (Linux devcontainer):** deferred 2026-09-30 — Linux is out of scope for now. To revive,
+  run `FORK_ACCEPTANCE_STRICT=1 make -f Makefile.cbm fork-acceptance` inside the devcontainer
+  (A5 uses `ldd` there instead of `otool -L`).
+
 ## Open items
 
-- **A1 (Linux devcontainer):** not run on Linux yet. The gate uses `ldd` there for A5.
-- **A4:** `/review` of this record → pending.
+- **A4:** review done (see "A4 review"); human sign-off pending.
 - **Q5:** manual Copilot transcript.

@@ -50,7 +50,7 @@ Debt carried forward (each item has an owner below):
 | 03 | `loopback-ui-subcommand` | Optional `cbm-cli-with-ui` build; `codebase-memory-cli ui [--port N]` starts the graph UI in-process, bound to 127.0.0.1 only; plain `cbm-cli` contains no HTTP code | 02 | COMPLETED |
 | 04 | `no-network-hardening` | Light: `update` refused in fork; plain binary must not import socket/connect/resolver symbols (nm) | 03 | COMPLETED |
 | 05 | `copilot-cli-and-quickstart` | Copilot command-invocation recipes (VS Code, Visual Studio, JetBrains, Android Studio), wrapper script, verified quickstart and JSON shapes | 04 | COMPLETED (Q5 manual open) |
-| 06 | `release-acceptance-gate` | One `make -f Makefile.cbm fork-acceptance` that runs the fork checks; upstream-merge rehearsal | 05 | COMPLETED (A1 Linux, A4 review, Q5 manual open) |
+| 06 | `release-acceptance-gate` | One `make -f Makefile.cbm fork-acceptance` that runs the fork checks; upstream-merge rehearsal | 05 | COMPLETED (A4 review, Q5 manual open; Linux deferred) |
 
 ## 4. Global Invariants (apply to every milestone)
 
@@ -107,3 +107,4 @@ Record the outcome in the milestone's `plan.md`. There is no separate evidence f
   guards so merges stay cheap; physical deletion is not planned.
 - UI auth beyond loopback binding and the existing readiness/Host checks.
 - Migrating the Go parity tests (an upstream concern).
+- Linux acceptance run (06 A1 on the devcontainer; deferred 2026-09-30).

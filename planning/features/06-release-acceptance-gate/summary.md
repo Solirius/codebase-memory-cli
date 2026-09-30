@@ -26,7 +26,7 @@ Re-checks every global invariant (ROADMAP §4) on the final binary. Nothing new 
 ## 6. Acceptance & Verification Gates
 | Eval | Check |
 |---|---|
-| A1 | `fork-acceptance` PASS on a clean clone (macOS host and Linux devcontainer) |
+| A1 | `fork-acceptance` PASS on a clean clone (macOS host and Linux devcontainer) — macOS only; Linux deferred 2026-09-30 |
 | A2 | Merge rehearsal against the latest fetched upstream: conflicts only in fork-edge files (`src/main.c`, `src/cli/cli.c`, `src/mcp/mcp.c` guards, `src/ui/http_server.c` guard, `graph-ui/src/api`, build files) |
 | A3 | Shared-core diff against upstream base is empty: `git diff <upstream-base> -- src/foundation src/store src/cypher src/pipeline internal/cbm` |
 | A4 | `ACCEPTANCE.md` complete and reviewed via `/review` → PASS |

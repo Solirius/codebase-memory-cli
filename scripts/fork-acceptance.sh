@@ -46,7 +46,7 @@ SHARED_CORE=(src/foundation src/store src/cypher src/pipeline internal/cbm)
 : "${CLI_ONLY_FORBIDDEN_STRINGS:=jsonrpc tools/list protocolVersion notifications/initialized}"
 
 mkdir -p "$LOG_DIR"
-rm -f "$LOG_DIR"/*.log
+[[ -n ${FORK_ACCEPTANCE_ONLY:-} ]] || rm -f "$LOG_DIR"/*.log  # partial runs keep the other steps' evidence
 WORK="$(mktemp -d "$OUT_DIR/work.XXXXXX")" || { echo "mktemp failed" >&2; exit 2; }
 cleanup() {
   local pids; pids="$(jobs -p)"
@@ -252,6 +252,7 @@ a6_ui() {
         out="$WORK/r.body"
         code="$(curl -s -o "$out" -w '%{http_code}' -m 5 -X "$method" -H 'Content-Type: application/json' \
           -H "Host: 127.0.0.1:$port" --data "$msg" "http://127.0.0.1:$port$route")"
+        if [[ $code == 000 ]]; then echo "FAIL: $method $route: no HTTP response (UI down?)"; fail=1; continue; fi
         body="$(head -c 2000 "$out")"
         if grep -q '"jsonrpc"' <<<"$body" || grep -q '"protocolVersion"' <<<"$body"; then
           echo "FAIL: $method $route answered JSON-RPC ($code): ${body:0:200}"; fail=1

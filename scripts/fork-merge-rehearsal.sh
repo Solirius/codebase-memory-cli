@@ -107,6 +107,7 @@ echo "==> make -f Makefile.cbm fork-acceptance (in the worktree)"
   ln -s "$ROOT/graph-ui/node_modules" "$WT/graph-ui/node_modules"
 make -C "$WT" -f Makefile.cbm --no-print-directory fork-acceptance
 rc=$?
+((rc == 0)) || rc=1  # make exits 2 on failure; 2 is reserved for usage errors
 [[ -f "$WT/build/c/fork-acceptance.json" ]] &&
   cp "$WT/build/c/fork-acceptance.json" "$ROOT/build/c/fork-merge-rehearsal-acceptance.json" &&
   echo "acceptance json: build/c/fork-merge-rehearsal-acceptance.json"
