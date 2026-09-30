@@ -783,7 +783,7 @@ $(BUILD_DIR)/test-foundation: $(TEST_FOUNDATION_SRCS) $(FOUNDATION_SRCS) $(PROJE
 	$(CC) $(CFLAGS_TEST) -o $@ $(TEST_FOUNDATION_SRCS) $(FOUNDATION_SRCS) $(LDFLAGS_TEST)
 
 test-foundation: $(BUILD_DIR)/test-foundation
-	cd $(CURDIR) && $(BUILD_DIR)/test-foundation
+	cd "$(CURDIR)" && $(BUILD_DIR)/test-foundation
 
 # ── Grammar/TS/LSP object files (compiled with relaxed warnings) ─
 
@@ -923,13 +923,13 @@ $(BUILD_DIR)/test-runner: $(ALL_TEST_SRCS) $(PROD_SRCS) $(EXTRACTION_SRCS) $(AC_
 		$(LDFLAGS_TEST)
 
 test: $(BUILD_DIR)/test-runner
-	cd $(CURDIR) && $(BUILD_DIR)/test-runner
+	cd "$(CURDIR)" && $(BUILD_DIR)/test-runner
 
 # Parallel variant: every suite as its own process; identical gate quality
 # (see the ZERO-LOSS CONTRACT in scripts/run-tests-parallel.sh — union guard
 # against --list-suites + aggregated pass/fail/skip totals).
 test-par: $(BUILD_DIR)/test-runner
-	cd $(CURDIR) && bash scripts/run-tests-parallel.sh $(BUILD_DIR)/test-runner
+	cd "$(CURDIR)" && bash scripts/run-tests-parallel.sh $(BUILD_DIR)/test-runner
 
 # Focused native development is intentionally a separate, explicit target so
 # an inherited TEST_SUITES value cannot silently narrow the gating test target.
@@ -937,7 +937,7 @@ TEST_SUITES ?=
 test-focused: $(BUILD_DIR)/test-runner
 	@test -n "$(strip $(TEST_SUITES))" || \
 		(echo "TEST_SUITES is required for test-focused"; exit 2)
-	cd $(CURDIR) && $(BUILD_DIR)/test-runner $(TEST_SUITES)
+	cd "$(CURDIR)" && $(BUILD_DIR)/test-runner $(TEST_SUITES)
 
 # ── Cumulative bug-reproduction runner (RED board by design, non-gating) ──
 # Mirrors test-runner's link line but uses repro_main.c (own main + counters)
@@ -951,16 +951,16 @@ $(BUILD_DIR)/test-repro-runner: $(TEST_REPRO_SRCS) $(PROD_SRCS) $(EXTRACTION_SRC
 		$(LDFLAGS_TEST)
 
 test-repro: $(BUILD_DIR)/test-repro-runner
-	cd $(CURDIR) && bash tests/repro/repro_script_summary.sh
-	cd $(CURDIR) && bash tests/repro/repro_script_zero_selection.sh
-	cd $(CURDIR) && bash tests/repro/repro_script_missing_summary.sh
-	cd $(CURDIR) && bash tests/repro/repro_script_skipped_summary.sh
-	cd $(CURDIR) && bash tests/repro/repro_runner_zero_selection.sh
-	cd $(CURDIR) && bash tests/repro/repro_runner_passing_semantics.sh
-	cd $(CURDIR) && bash tests/repro/repro_script_no_workspace_artifact.sh
-	cd $(CURDIR) && bash tests/repro/repro_script_stderr_summary.sh
-	cd $(CURDIR) && bash tests/repro/repro_make_tracks_headers.sh
-	cd $(CURDIR) && $(BUILD_DIR)/test-repro-runner
+	cd "$(CURDIR)" && bash tests/repro/repro_script_summary.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_script_zero_selection.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_script_missing_summary.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_script_skipped_summary.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_runner_zero_selection.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_runner_passing_semantics.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_script_no_workspace_artifact.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_script_stderr_summary.sh
+	cd "$(CURDIR)" && bash tests/repro/repro_make_tracks_headers.sh
+	cd "$(CURDIR)" && $(BUILD_DIR)/test-repro-runner
 
 # ── TSan full test ───────────────────────────────────────────────
 
@@ -1012,14 +1012,14 @@ $(BUILD_DIR)/test-runner-tsan: $(ALL_TEST_SRCS) $(PROD_SRCS) $(EXTRACTION_SRCS) 
 
 test-tsan: $(BUILD_DIR)/test-runner-tsan
 	@echo "ThreadSanitizer workers: 4"
-	cd $(CURDIR) && CBM_WORKERS=4 TSAN_OPTIONS="$(TSAN_OPTIONS)" \
+	cd "$(CURDIR)" && CBM_WORKERS=4 TSAN_OPTIONS="$(TSAN_OPTIONS)" \
 		$(BUILD_DIR)/test-runner-tsan $(TEST_TSAN_SUITES)
 
 # Real-binary POSIX lifecycle smoke. The endpoint is deliberately account-wide;
 # an explicit Make invocation requires a clean rendezvous and fails rather than
 # silently skipping an occupied one. Deterministic C tests cover Windows IPC.
 test-daemon-smoke: $(BUILD_DIR)/codebase-memory-mcp
-	cd $(CURDIR) && CBM_DAEMON_SMOKE_REQUIRE_RUN=1 python3 tests/test_daemon_smoke.py $(BUILD_DIR)/codebase-memory-mcp
+	cd "$(CURDIR)" && CBM_DAEMON_SMOKE_REQUIRE_RUN=1 python3 tests/test_daemon_smoke.py $(BUILD_DIR)/codebase-memory-mcp
 
 # ── Production binary ────────────────────────────────────────────
 
@@ -1393,7 +1393,7 @@ test-lsan:
 	@echo "=== macOS leak lane: $(shell $(LSAN_LLVM_BIN)/clang --version | head -1) ==="
 	$(MAKE) -f Makefile.cbm build/lsan/test-runner \
 		CC=$(LSAN_LLVM_BIN)/clang CXX=$(LSAN_LLVM_BIN)/clang++ BUILD_DIR=build/lsan
-	cd $(CURDIR) && ASAN_OPTIONS="detect_leaks=1:halt_on_error=1" \
+	cd "$(CURDIR)" && ASAN_OPTIONS="detect_leaks=1:halt_on_error=1" \
 		./build/lsan/test-runner $(LSAN_SUITES)
 
 # Path-sensitive memory analysis: leak paths, null derefs, uninitialized reads.

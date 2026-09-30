@@ -35,7 +35,7 @@ Debt carried forward (each item has an owner below):
 - **D-5** ✅ CLOSED by 02 (`install` refuses in the fork; `uninstall` is remove-only). `install`/agent setup (`src/cli/agent_clients.c`, `agent_profiles.c`, `cli.c`) writes
   `mcpServers`/`.mcp.json` entries into Copilot and other agent configs. That registers the app
   as an MCP server, which the company ban forbids. → owned by 02; its CLI-only replacement is in 05.
-- **D-6** `Makefile.cbm` `test-par` runs `cd $(CURDIR)` unquoted, so `scripts/test.sh` fails (Error 127)
+- **D-6** ✅ CLOSED by 06 (`cd "$(CURDIR)"` quoted in Makefile.cbm). `Makefile.cbm` `test-par` runs `cd $(CURDIR)` unquoted, so `scripts/test.sh` fails (Error 127)
   when the repo path contains a space. Pre-existing; workaround `bash scripts/run-tests-parallel.sh
   build/c/test-runner`. → owned by 06 (acceptance gate must run from any path).
 - **D-4** `service.c`, `bootstrap.c` and `ipc.c` are still linked, and only section GC removes
@@ -50,7 +50,7 @@ Debt carried forward (each item has an owner below):
 | 03 | `loopback-ui-subcommand` | Optional `cbm-cli-with-ui` build; `codebase-memory-cli ui [--port N]` starts the graph UI in-process, bound to 127.0.0.1 only; plain `cbm-cli` contains no HTTP code | 02 | COMPLETED |
 | 04 | `no-network-hardening` | Light: `update` refused in fork; plain binary must not import socket/connect/resolver symbols (nm) | 03 | COMPLETED |
 | 05 | `copilot-cli-and-quickstart` | Copilot command-invocation recipes (VS Code, Visual Studio, JetBrains, Android Studio), wrapper script, verified quickstart and JSON shapes | 04 | COMPLETED (Q5 manual open) |
-| 06 | `release-acceptance-gate` | One `make -f Makefile.cbm fork-acceptance` that runs the fork checks; upstream-merge rehearsal | 05 | PENDING |
+| 06 | `release-acceptance-gate` | One `make -f Makefile.cbm fork-acceptance` that runs the fork checks; upstream-merge rehearsal | 05 | COMPLETED (A1 Linux, A4 review, Q5 manual open) |
 
 ## 4. Global Invariants (apply to every milestone)
 

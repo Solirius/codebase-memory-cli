@@ -248,3 +248,13 @@ test-cli-only-ui: $(CLI_ONLY_UI_TEST_RUNNER)
 	@nm $(CLI_ONLY_UI_TEST_DIR)/http_server.o | grep -q "handle_rpc" && \
 		{ echo "FAIL: guarded http_server.o still defines handle_rpc"; exit 1; } || true
 	cd "$(CURDIR)" && $(CLI_ONLY_UI_TEST_RUNNER) httpd
+
+# ── Milestone 06: release acceptance gate (verification-only, additive) ─────
+# Runs every fork gate and milestone eval in order, fail-fast; writes a summary
+# table and build/c/fork-acceptance.json. FORK_ACCEPTANCE_STRICT=1 makes
+# skipped optional steps (no graph-ui/node_modules, no shellcheck) fail.
+.PHONY: fork-acceptance
+fork-acceptance:
+	MAKE="$(MAKE)" CLI_ONLY_FORBIDDEN_PREFIXES="$(CLI_ONLY_FORBIDDEN_PREFIXES)" \
+		CLI_ONLY_FORBIDDEN_STRINGS="$(CLI_ONLY_FORBIDDEN_STRINGS)" \
+		bash "$(CURDIR)/scripts/fork-acceptance.sh"

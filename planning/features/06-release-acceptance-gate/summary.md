@@ -1,6 +1,6 @@
 # 06 — `release-acceptance-gate`
 
-**Milestone:** 06 of 06 | **Status:** PENDING | **New**
+**Milestone:** 06 of 06 | **Status:** COMPLETED | **New**
 
 ## 1. Objective & Rationale
 Earlier milestones each prove their own slice. This one proves the whole product in one command.

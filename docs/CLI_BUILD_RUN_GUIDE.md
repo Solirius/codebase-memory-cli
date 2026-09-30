@@ -182,6 +182,21 @@ message. It binds `127.0.0.1` only, and no option changes the interface. It runs
 while the command runs; Ctrl-C stops it. It rejects foreign `Host` and `Origin` headers. A busy
 port prints `{"error":{"code":"port_in_use",...}}` and exits non-zero.
 
+You never need the UI. Every UI capability has a CLI command:
+
+| UI capability | CLI command |
+|---|---|
+| Browse projects | `cli list_projects` |
+| Browse / search the graph | `cli search_graph`, `cli query_graph` |
+| Graph / layout data | `cli query_graph`, `cli get_architecture`, `cli get_graph_schema` |
+| Node details / source | `cli get_code_snippet` |
+| Index a repository | `cli index_repository` |
+| Index status, project health | `cli index_status` |
+| Delete a project | `cli delete_project` |
+| ADR read / write | `cli manage_adr` |
+| Processes (indexing progress) | `cli --progress index_repository` |
+| Logs | `cli --verbose <tool>` (stderr) |
+
 ## Notes
 
 - The binary makes **no outbound network connections**: no update checks and no telemetry.
