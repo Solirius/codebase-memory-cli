@@ -8,11 +8,11 @@ Evidence for milestone 06 (`release-acceptance-gate`). Regenerate with
 
 | Field | Value |
 |---|---|
-| Commit | `2f0e35e1` + the milestone 06 working-tree changes (gate scripts, `cli-only.mk`, D-6 fix, docs) |
+| Commit | `da7dfc16` + shellcheck clean-up of `scripts/fork-acceptance.sh` |
 | Host | macOS, Darwin arm64, GNU Make 3.81, bash 3.2 |
 | Date | 2026-09-30 |
-| Command | `make -f Makefile.cbm fork-acceptance` (non-strict) |
-| Result | **PASS** (exit 0), 1 SKIP (Q4: shellcheck not installed on this host) |
+| Command | `FORK_ACCEPTANCE_STRICT=1 make -f Makefile.cbm fork-acceptance` |
+| Result | **PASS** (exit 0), strict: no SKIPs |
 
 ## Gate output
 
@@ -27,7 +27,7 @@ Evidence for milestone 06 (`release-acceptance-gate`). Regenerate with
 | PASS | M2 | M2 | guarded httpd suite: `/rpc` 404, JSON-RPC rejected |
 | PASS | M3a / M3b | M3 | no `/rpc` in `graph-ui/src`; `graph-ui` vitest |
 | PASS | Q1-3 | Q1 Q2 Q3 | `scripts/verify-docs.sh` |
-| SKIP | Q4 | Q4 | `shellcheck scripts/cbm` — not installed here (PASS in 05 with 0.11.0) |
+| PASS | Q4 | Q4 | `shellcheck scripts/cbm` (0.11.0); the gate scripts have no shellcheck warnings |
 | PASS | U2-6 | U2–U6 | `test-cli-only-ui-live` on the ASan UI binary |
 | PASS | UIBIN | M1 A6 | release UI variant `build/c/codebase-memory-cli-ui` builds |
 | PASS | A6a | A6 | `initialize` / `notifications/initialized` / `tools/list` / `tools/call` on stdin under 19 argv shapes: no JSON-RPC reply; nm/strings clean |
@@ -83,4 +83,3 @@ components/hooks that call it); docs, planning and agent-harness files. Mileston
 - **A1 (Linux devcontainer):** not run on Linux yet. The gate uses `ldd` there for A5.
 - **A4:** `/review` of this record → pending.
 - **Q5:** manual Copilot transcript.
-- **Q4** on this host needs `brew install shellcheck`; run with `FORK_ACCEPTANCE_STRICT=1` for a release.

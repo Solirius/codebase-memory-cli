@@ -15,7 +15,7 @@
 # Optional prerequisites. The build never fetches anything, so a clean clone
 # lacks some of them. Steps that need them are SKIPped, not failed:
 #   graph-ui/node_modules  (cd graph-ui && npm ci)  -> M3 npm test, U2–U6, A6 UI half
-#   shellcheck                                      -> Q4
+#   the shellcheck tool                             -> Q4
 # FORK_ACCEPTANCE_STRICT=1 turns every SKIP into a failure (use it for a release).
 #
 # Environment:
@@ -37,7 +37,6 @@ LOG_DIR="$OUT_DIR/logs"
 JSON="$ROOT/build/c/fork-acceptance.json"
 BIN="$ROOT/build/c/codebase-memory-cli"
 UI_BIN="$ROOT/build/c/codebase-memory-cli-ui"
-UI_ASAN_BIN="$ROOT/build/c/codebase-memory-cli-ui-asan"
 # Upstream commit the fork branched from (DeusData/codebase-memory-mcp,
 # "Merge pull request #2138 from DeusData/fix/decision-bd").
 PINNED_UPSTREAM_BASE=055fbb7d
