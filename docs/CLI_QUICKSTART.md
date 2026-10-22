@@ -25,8 +25,9 @@ scripts/build.sh --cli-only
 build/c/codebase-memory-cli --version
 ```
 
-The binary is `build/c/codebase-memory-cli`. Put it on your `PATH` (for example, copy it to
-`~/.local/bin`) so that editors and Copilot can run it by name.
+The binary is `build/c/codebase-memory-cli`. To use it from another project, link it in as
+`.cbm/codebase-memory-cli` (git-ignored, no copy needed) and call `./.cbm/codebase-memory-cli`.
+`scripts/installer-wizard.sh` does this for you; see also the README's Step 3.
 
 ## 3. Index a small demo repository
 
