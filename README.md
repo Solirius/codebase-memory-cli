@@ -1,31 +1,25 @@
-# codebase-memory-mcp
+# codebase-memory-cli
 
-[![GitHub Release](https://img.shields.io/github/v/release/DeusData/codebase-memory-mcp?style=flat&color=blue)](https://github.com/DeusData/codebase-memory-mcp/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/DeusData/codebase-memory-mcp/dry-run.yml?label=CI)](https://github.com/DeusData/codebase-memory-mcp/actions/workflows/dry-run.yml)
-[![Tests](https://img.shields.io/badge/tests-6768_passing-brightgreen)](https://github.com/DeusData/codebase-memory-mcp)
-[![Languages](https://img.shields.io/badge/languages-162-orange)](https://github.com/DeusData/codebase-memory-mcp)
+[![Languages](https://img.shields.io/badge/languages-162-orange)](#language-support)
 [![Hybrid LSP](https://img.shields.io/badge/Hybrid_LSP-10_languages-blue)](#hybrid-lsp)
-[![Agents](https://img.shields.io/badge/agent_surfaces-45-purple)](https://github.com/DeusData/codebase-memory-mcp)
-[![Pure C](https://img.shields.io/badge/pure_C-no_language_runtime-blue)](https://github.com/DeusData/codebase-memory-mcp)
-[![Platform](https://img.shields.io/badge/macOS_%7C_Linux_%7C_Windows-supported-lightgrey)](https://github.com/DeusData/codebase-memory-mcp/releases/latest)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/DeusData/codebase-memory-mcp/badge)](https://scorecard.dev/viewer/?uri=github.com/DeusData/codebase-memory-mcp)
-[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
-[![VirusTotal](https://img.shields.io/badge/VirusTotal-scanned_every_release-brightgreen?logo=virustotal)](https://github.com/DeusData/codebase-memory-mcp/releases/latest)
-[![arXiv](https://img.shields.io/badge/arXiv-2603.27277-b31b1b?logo=arxiv)](https://arxiv.org/abs/2603.27277)
+[![Pure C](https://img.shields.io/badge/pure_C-no_language_runtime-blue)](#architecture)
+[![No MCP](https://img.shields.io/badge/MCP-none-lightgrey)](#-about-this-fork--cli-only-no-mcp-no-network)
+[![No network](https://img.shields.io/badge/network-loopback_UI_only-lightgrey)](#security)
+[![Upstream](https://img.shields.io/badge/fork_of-DeusData%2Fcodebase--memory--mcp-blue)](https://github.com/DeusData/codebase-memory-mcp)
 
-**The fastest and most efficient code intelligence engine for AI coding agents.** Full-indexes an average repository in milliseconds, the Linux kernel (28M LOC, 75K files) in 3 minutes. Answers structural queries in under 1ms. Ships as a native executable with a small verified runtime-asset set for macOS, Linux, and Windows — download, run `install`, done.
+**A local, CLI-only code intelligence engine for AI coding agents such as GitHub Copilot.** It builds a persistent knowledge graph of your code — functions, classes, call chains, HTTP routes, cross-service links — and answers structural questions (*who calls X?*, *what does this module depend on?*) in milliseconds through plain one-shot terminal commands that print JSON.
 
-High-quality parsing through [tree-sitter](https://tree-sitter.github.io/tree-sitter/) AST analysis across all 162 languages, enhanced with [**Hybrid LSP** semantic type resolution](#hybrid-lsp) for Python, TypeScript / JavaScript / JSX / TSX, PHP, C#, Go, C, C++, Java, Kotlin, Rust, and Perl — producing a persistent knowledge graph of functions, classes, call chains, HTTP routes, and cross-service links. 15 MCP tools. No language runtime, hosted service, or API key. Plug and play across 45 supported automatic/conditional client surfaces.
+High-quality parsing through [tree-sitter](https://tree-sitter.github.io/tree-sitter/) AST analysis across all 162 languages, enhanced with [**Hybrid LSP** semantic type resolution](#hybrid-lsp) for Python, TypeScript / JavaScript / JSX / TSX, PHP, C#, Go, C, C++, Java, Kotlin, Rust, and Perl. No MCP server, no daemon, no language runtime, hosted service, or API key.
 
-> **Research** — The design and benchmarks behind this project are described in the preprint [*Codebase-Memory: Tree-Sitter-Based Knowledge Graphs for LLM Code Exploration via MCP*](https://arxiv.org/abs/2603.27277) (arXiv:2603.27277). Evaluated across 31 real-world repositories: 83% answer quality, 10× fewer tokens, 2.1× fewer tool calls vs. file-by-file exploration.
+> **Research** — The design and benchmarks of the upstream engine are described in the preprint [*Codebase-Memory: Tree-Sitter-Based Knowledge Graphs for LLM Code Exploration via MCP*](https://arxiv.org/abs/2603.27277) (arXiv:2603.27277). This fork reuses the same indexing engine and graph; only the delivery mechanism (CLI instead of MCP) differs.
 
-> **Security & Trust** — This tool reads your codebase and writes to your agent configuration files. That is what it is designed to do. If you prefer to audit before running, the [full source is here](https://github.com/DeusData/codebase-memory-mcp). For each release product, three behaviourally identical executable candidates (unstripped, debug-stripped, stripped) are submitted to VirusTotal before testing; the selected candidate is then packaged with its SHA-256 unchanged. Release notes link every measured candidate result. Publication permits only the narrowly documented single-Microsoft `!ml` tolerance in [SECURITY.md](SECURITY.md#our-release-policy). All processing happens 100% locally; your code never leaves your machine. Found a security issue? We want to know — see [SECURITY.md](SECURITY.md). Security is Priority #1 for us.
+> **Security & Trust** — All processing happens 100% locally; your code never leaves your machine. The binary makes no outbound network requests, and the optional graph UI binds to `127.0.0.1` only. You build it yourself from this source. See [Security](#security) and [SECURITY.md](SECURITY.md).
 
 <p align="center">
-  <img src="docs/graph-ui-screenshot.png" alt="Graph visualization UI showing the codebase-memory-mcp knowledge graph" width="800">
+  <img src="docs/graph-ui-screenshot.png" alt="Graph visualization UI showing a codebase knowledge graph" width="800">
   <br>
-  <em>Built-in 3D graph visualization — explore your knowledge graph at localhost:9749</em>
+  <em>Optional 3D graph visualization — <code>codebase-memory-cli ui</code>, served on 127.0.0.1:9749</em>
 </p>
 
 ---
@@ -53,164 +47,210 @@ High-quality parsing through [tree-sitter](https://tree-sitter.github.io/tree-si
 
 ---
 
-## Why codebase-memory-mcp
+## 🚀 Step-by-step: build, run, connect to GitHub Copilot — and prove it works
+
+Follow these steps in order. Each one ends with a **✅ Proof** you can see with your own eyes.
+
+### Step 1 — Prerequisites
+
+You need a C/C++ compiler (`clang` or `gcc`), `make`, `git`, and zlib.
+
+```bash
+# macOS
+xcode-select --install
+# Debian/Ubuntu
+sudo apt install build-essential zlib1g-dev git
+```
+
+✅ **Proof:** `cc --version && git --version` both print a version.
+
+### Step 2 — Build the CLI binary
+
+From the root of this repository:
+
+```bash
+scripts/build.sh --cli-only              # CLI only
+scripts/build.sh --cli-only --with-ui    # optional: also embed the 127.0.0.1 graph UI
+```
+
+✅ **Proof:** the build ends with `=== Build complete: build/c/codebase-memory-cli ===`, and
+
+```bash
+build/c/codebase-memory-cli --version
+build/c/codebase-memory-cli --help       # lists: cli, install, uninstall, config (and ui with --with-ui)
+```
+
+### Step 3 — Put it on your `PATH`
+
+Copilot runs the binary by name, so it must be on your `PATH`:
+
+```bash
+mkdir -p ~/.local/bin
+cp build/c/codebase-memory-cli ~/.local/bin/
+# if needed, add to ~/.zshrc or ~/.bashrc:  export PATH="$HOME/.local/bin:$PATH"
+```
+
+✅ **Proof:** open a **new** terminal and run `command -v codebase-memory-cli` — it prints the path you copied it to.
+
+### Step 4 — Index the repository you want Copilot to understand
+
+```bash
+cd /path/to/your/repo
+codebase-memory-cli cli --quiet index_repository --repo-path "$PWD"
+```
+
+✅ **Proof:** one line of JSON ending in `"status":"indexed"`, with non-zero `"nodes"` and `"edges"`. Then:
+
+```bash
+codebase-memory-cli cli list_projects --format json      # your repo appears; note its "name"
+codebase-memory-cli cli index_status --project <name> --format json   # "status":"ready"
+codebase-memory-cli cli trace_path --project <name> --function-name <someFunction> --direction inbound --format json
+```
+
+The last command returns the real callers of a function in your code — the graph is working.
+
+### Step 5 — Connect it to GitHub Copilot
+
+Still inside your repository:
+
+```bash
+codebase-memory-cli install --dry-run    # preview: shows which files would be written
+codebase-memory-cli install              # write them
+```
+
+This writes only:
+
+- `.github/copilot-instructions.md` — a managed section teaching Copilot which `codebase-memory-cli` commands to run;
+- `.github/prompts/cbm-*.prompt.md` — reusable prompts (e.g. *who calls*, *architecture*);
+- `.vscode/tasks.json` — only if absent or previously generated by `install`.
+
+No MCP server is registered anywhere. Re-running is safe; `codebase-memory-cli uninstall --copilot` removes everything.
+
+✅ **Proof:** `install` prints JSON with `"status":"installed"` and one `action` per file (`created`, `appended`, `updated`, `unchanged`); `git status` shows exactly those files.
+
+Then, in your IDE:
+
+1. Reload the window (VS Code: *Developer: Reload Window*) so Copilot picks up the new instructions.
+2. Open Copilot Chat and switch to **Agent** mode (terminal commands are only run in agent mode).
+3. When Copilot asks to run `codebase-memory-cli`, click **Allow** (or add it to `chat.tools.terminal.autoApprove` if your policy permits).
+
+Per-IDE notes (VS Code, Visual Studio, JetBrains, Android Studio, Copilot CLI): [`docs/COPILOT_CLI_INTEGRATION.md`](docs/COPILOT_CLI_INTEGRATION.md).
+
+### Step 6 — Prove Copilot is really using it
+
+Ask Copilot Chat (Agent mode) a structural question about your code, for example:
+
+> *Who calls `<someFunction>`? Use codebase-memory-cli.*
+
+✅ **Proof — what you should see:**
+
+1. **The command itself.** The chat shows a terminal tool call such as
+   `codebase-memory-cli cli trace_path --project <name> --function-name <someFunction> --direction inbound --format json`.
+2. **Its JSON output.** Expand the tool call: the JSON contains `"callers":…` from your graph.
+3. **A matching answer.** Copilot's reply names the same callers you got by running the command yourself in Step 4.
+4. **The prompt files work.** Type `/cbm-` in chat — the `cbm-*` prompts from Step 5 appear.
+
+✅ **Proof — what you should *not* see (it really is CLI-only):**
+
+```bash
+ps aux | grep -i '[c]odebase-memory'     # nothing left running after a command finishes
+```
+
+and in VS Code, *MCP: List Servers* shows no `codebase-memory` server — Copilot reached the graph only through terminal commands.
+
+### Step 7 (optional) — See the graph in your browser
+
+Requires the `--with-ui` build from Step 2:
+
+```bash
+codebase-memory-cli ui --format json     # prints {"status":"listening","url":"http://127.0.0.1:9749"}
+```
+
+Open <http://127.0.0.1:9749>. Stop it with Ctrl-C.
+
+✅ **Proof it is local-only:** in another terminal, `lsof -nP -iTCP:9749 -sTCP:LISTEN` shows `TCP 127.0.0.1:9749 (LISTEN)` — loopback, never `*:9749`.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `command not found: codebase-memory-cli` | Step 3: check `PATH`, open a new terminal, restart the IDE. |
+| Copilot answers without running a command | Make sure you're in **Agent** mode, reload the window, ask it explicitly to "use codebase-memory-cli". |
+| `project not found` error | Use the exact `name` from `list_projects`, or re-run Step 4. |
+| Answers look stale | Re-run `index_repository` after large changes. |
+| `ui` is an unknown command | Rebuild with `scripts/build.sh --cli-only --with-ui`. |
+
+---
+
+## Why codebase-memory-cli
 
 - **Extreme indexing speed** — Linux kernel (28M LOC, 75K files) in 3 minutes. RAM-first pipeline: LZ4 compression, in-memory SQLite, fused Aho-Corasick pattern matching. Memory released after indexing.
-- **Plug and play** — native executable plus authenticated release-owned assets for macOS (arm64/amd64), Linux (arm64/amd64), and Windows (amd64). The native install needs no Docker, language runtime, or API keys. Download → `install` → restart agent → done.
+- **Works with GitHub Copilot without MCP** — Copilot's agent runs `codebase-memory-cli` as an ordinary terminal command; `codebase-memory-cli install` writes the repository instructions and prompt files that teach it how.
+- **One-shot, nothing left running** — every command starts, answers, and exits. No daemon, no socket, no background watcher.
 - **162 languages** — vendored tree-sitter grammars compiled into the binary. Nothing to install, nothing that breaks.
 - **120x fewer tokens** — 5 structural queries: ~3,400 tokens vs ~412,000 via file-by-file search. One graph query replaces dozens of grep/read cycles.
-- **45 supported automatic/conditional client surfaces** — `install` configures detected clients and safely activates conditional clients only when their documented platform, marker, or explicit existing config path is present. See [Multi-Agent Support](#multi-agent-support) for the complete matrix and manual/UI-only boundaries.
-- **Built-in graph visualization** — 3D interactive UI at `localhost:9749`, served from the binary itself.
-- **Infrastructure-as-code indexing** — Dockerfiles, Kubernetes manifests, and Kustomize overlays indexed as graph nodes with cross-references. `Resource` nodes for K8s kinds, `Module` nodes for Kustomize overlays with `IMPORTS` edges to referenced resources.
-- **15 MCP tools** — search, trace, architecture, impact analysis, targeted index-coverage checks, Cypher queries, dead code detection, cross-service HTTP linking, ADR management, and more.
+- **Optional graph visualization** — 3D interactive UI on `127.0.0.1:9749`, served from the binary itself (build with `--with-ui`).
+- **Infrastructure-as-code indexing** — Dockerfiles, Kubernetes manifests, and Kustomize overlays indexed as graph nodes with cross-references.
+- **17 CLI tools** — search, trace, architecture, impact analysis, index-coverage checks, Cypher queries, dead code detection, cross-service HTTP linking, ADR management, and more. See [CLI Tools](#cli-tools).
 
 ## Quick Start
 
-**One-line install** (macOS / Linux):
+There are no pre-built downloads or install scripts for this fork — you build the binary from source. The short version (macOS / Linux):
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash
+scripts/build.sh --cli-only                      # add --with-ui for the graph UI
+cp build/c/codebase-memory-cli ~/.local/bin/     # must be on your PATH
+
+cd /path/to/your/repo
+codebase-memory-cli cli --quiet index_repository --repo-path "$PWD"
+codebase-memory-cli install                      # wire it into GitHub Copilot for this repo
 ```
 
-With graph visualization UI:
-```bash
-curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash
-```
+Then reload your IDE, open Copilot Chat in **Agent** mode and ask *"Who calls `<someFunction>`?"*.
 
-**Windows** (PowerShell):
-```powershell
-# 1. Download the installer
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.ps1 -OutFile install.ps1
-
-# 2. (Optional but recommended) Inspect the script
-notepad install.ps1
-
-# 3. Unblock the downloaded file (removes Mark-of-the-Web restriction added by browsers/Invoke-WebRequest)
-Unblock-File .\install.ps1
-
-# 4. Run it
-.\install.ps1
-
-```
-
-> **Note:** If you see a script execution policy error, run `Set-ExecutionPolicy -Scope Process Bypass` first, or invoke with `PowerShell -ExecutionPolicy Bypass -File .\install.ps1`.
-
-Options: `--skip-config` (binary only, no agent setup), `--dir=<path>` (custom location).
-
-> **Antivirus note:** Microsoft Defender may flag a release binary as
-> `Trojan:Script/Wacatac.B!ml`. This is a known false positive — typically 61 of
-> ~62 engines return clean, and the same detection family hits `gh`, llama.cpp,
-> Godot and Microsoft's own Go toolchain. See
-> [Antivirus False Positives](SECURITY.md#antivirus-false-positives) for the
-> evidence, how to verify the artifacts yourself, and how to report it if you
-> think we are wrong.
-
-Restart your coding agent. Say **"Index this project"** — done.
-
-<details>
-<summary>Manual install</summary>
-
-1. **Download** the archive for your platform from the [latest release](https://github.com/DeusData/codebase-memory-mcp/releases/latest):
-   - `codebase-memory-mcp-<os>-<arch>.tar.gz` (macOS/Linux) or `.zip` (Windows)
-
-2. **Extract and install** (each archive includes `install.sh` or `install.ps1`):
-
-   macOS / Linux:
-   ```bash
-   tar xzf codebase-memory-mcp-*.tar.gz
-   ./install.sh
-   ```
-
-   Windows (PowerShell):
-   ```powershell
-   Expand-Archive codebase-memory-mcp-windows-amd64.zip -DestinationPath .
-   Unblock-File .\install.ps1
-   .\install.ps1
-   ```
-
-3. **Restart** your coding agent.
-
-The `install` command automatically strips macOS quarantine attributes and ad-hoc signs the binary — no manual `xattr`/`codesign` needed.
-</details>
-
-The `install` command auto-detects installed coding agents and configures their documented MCP entries plus durable instructions, skills, and lifecycle hooks where supported.
-
-### Session Coordination Daemon
-
-CBM automatically shares one per-account coordination daemon across Claude Code, Codex, OpenCode, and every other configured client. There is no opt-in setting for MCP servers or hook clients: the first daemon-backed CBM session starts it, each session registers its own work, and the final session shuts it down. The daemon owns long-lived background services such as watchers, shared indexing jobs, and the optional UI. Closing one session cancels work owned only by that session, while work still needed by another session continues.
-
-The detached daemon does not depend on an MCP frontend's stderr. It keeps owner-only durable records under the canonical `${CBM_CACHE_DIR}/logs` directory (default `~/.cache/codebase-memory-mcp/logs`):
-
-| File | Contents |
-|------|----------|
-| `cbm-daemon.log` | Daemon lifecycle, watcher/indexing, UI, resource, and error events. |
-| `daemon-conflicts.ndjson` | Exact-build, coordination-ABI, and cache-root admission conflicts. |
-| `activation-events.ndjson` | Install/update/uninstall activation progress and outcomes. |
-
-Thin frontends still write immediate startup and session-specific errors to their own stderr; MCP JSON-RPC stdout remains clean.
-
-All active CBM processes must run the exact same version, executable build, coordination ABI, and canonical cache root. Equivalent `CBM_CACHE_DIR` aliases resolve to the same root; a genuinely different root is rejected while any CBM process is active. MCP servers, hooks, one-shot CLI commands, temporary index workers, and the daemon share a crash-safe OS admission barrier; starting an ordinary conflicting process fails before doing work and records an explicit conflict in `${CBM_CACHE_DIR}/logs/daemon-conflicts.ndjson`.
-
-The native `install`, `update`, and `uninstall` commands are the deliberate exception to that conflict rule. Download, verification, and private same-filesystem staging happen first so a bad candidate never disrupts active work. Activation then publishes account-wide maintenance intent, asks the daemon and every temporary local operation to cancel, and waits to a finite deadline for all coordinated CBM processes to exit. It holds the admission and lifetime barriers exclusively while changing the active binary, configuration, PATH, or indexes. New CBM work cannot enter during this window. Activation progress and results are recorded in `${CBM_CACHE_DIR}/logs/activation-events.ndjson`, and a successful command tells you to restart open coding-agent sessions so they launch the activated build.
-
-Package-manager setup (npm, PyPI, or Go) verifies and publishes a coherent private cached runtime set. Sidecars are replaced before the executable with per-file atomic renames; an interrupted multi-file publication is detected and repaired on the next launch rather than being described as one crash-atomic filesystem transaction. It does not replace the active native installation and therefore does not stop running CBM sessions. When that cached binary is executed, it still enters the same exact-build admission barrier. The shell and PowerShell installers invoke the verified candidate's native `install` command, so they do receive the full account-wide activation guarantee.
-
-The ordinary `cli` mode is intentionally separate: it runs one command locally and never starts or connects to the coordination daemon, registers a daemon session, or starts watchers/UI. Its only shared state is the OS admission barrier plus per-project locks for graph mutations. While the command is running, a temporary monitor lets activation cancel that operation and its supervised worker safely; the monitor exits with the command and never becomes a standing daemon. See [CLI Mode](#cli-mode) for details.
+For the full walkthrough with a verification check after every step, follow [Step-by-step: build, run, connect to GitHub Copilot — and prove it works](#-step-by-step-build-run-connect-to-github-copilot--and-prove-it-works).
 
 ### Graph Visualization UI
 
-The graph UI is built into the binary — every install on every channel has it. Then run it:
+Only in binaries built with `scripts/build.sh --cli-only --with-ui`:
 
 ```bash
-codebase-memory-mcp --ui=true --port=9749
+codebase-memory-cli ui                 # http://127.0.0.1:9749, until Ctrl-C
+codebase-memory-cli ui --port 0        # pick a free port
+codebase-memory-cli ui --format json   # prints {"status":"listening","url":"..."}
 ```
 
-Open `http://localhost:9749` in your browser. The UI is owned by the shared coordination daemon, so concurrent agent sessions do not start duplicate HTTP servers.
+The UI is started and stopped directly by you; it binds the loopback interface only and needs no daemon.
 
-### Auto-Index
+### Keeping the Index Fresh
 
-Enable automatic indexing on MCP session start:
+This fork has no background watcher or auto-index on session start. Re-run indexing whenever the code has changed meaningfully — it is incremental, so repeat runs are fast:
 
 ```bash
-codebase-memory-mcp config set auto_index true
+codebase-memory-cli cli --quiet index_repository --repo-path "$PWD"
 ```
 
-When enabled, new projects are indexed automatically on first connection. Previously-indexed projects are registered with the background watcher for ongoing git-based change detection. Configurable file limit: `config set auto_index_limit 50000`.
+The installed Copilot instructions tell the agent to do the same when results look stale.
 
-Watcher registration is controlled separately by `auto_watch` (default `true`). Set `config set auto_watch false` to keep a session from registering its project with the background watcher — useful when working across many projects and you want each session contained to explicit indexing.
+### Updating
 
-To turn the watcher off entirely, set `config set watcher_enabled false` (default `true`): the background poll thread never starts and no project is registered, while `auto_index` and manual `index_repository` keep working. Unlike `auto_watch` — which is consulted per session — `watcher_enabled` is read once when the background daemon starts, so run `codebase-memory-mcp daemon stop` after changing it; reconnecting your MCP client alone will not restart the daemon. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#2-cli-managed-runtime-settings).
-
-### Keeping Up to Date
-
-**Updates run from the install script on every platform, not from inside the running binary.** `codebase-memory-mcp update` validates your flags and then prints the exact command to run:
+There is no `update` command (it reports `update is not available in the CLI-only build`) and the binary never checks for new versions. To update, pull this repository, rebuild, and copy the binary again:
 
 ```bash
-# macOS / Linux
-bash "<install-dir>/install.sh"
+git pull
+scripts/build.sh --cli-only
+cp build/c/codebase-memory-cli ~/.local/bin/
 ```
-
-```powershell
-# Windows
-powershell -ExecutionPolicy Bypass -File "<install-dir>\install.ps1"
-```
-
-The install script is placed next to the binary at install time, so the printed path resolves beside the executable. It is idempotent, so re-running it *is* the update: it stops the daemon, retires the running binary, installs the new one, and cleans up.
-
-Why it works this way. On Windows it is a hard requirement — a running executable cannot replace its own image, so the swap has to happen from a process that is not the binary being replaced. On macOS and Linux it is a deliberate choice: an in-process updater is structurally a downloader (fetch an archive, verify it, unpack it, mark a file executable, run it), and shipping that composite in every binary to serve a command most people run a handful of times is a poor trade. The release archives now carry no download URLs at all, and **cbm makes no network request of its own accord** — it does not check for new versions in the background, and nothing phones home. You find out about releases from the install script, your package manager, or GitHub.
-
-If PowerShell refuses to run the script because the file came from the internet, `Unblock-File` it first.
-
-Installed through **npm or pip**? Update with your package manager on every platform (`npm install -g codebase-memory-mcp@latest` / `pip install -U codebase-memory-mcp`).
 
 ### Uninstall
 
 ```bash
-codebase-memory-mcp uninstall
+codebase-memory-cli uninstall --copilot --project /path/to/repo   # remove the Copilot files from a repo (add --dry-run to preview)
+rm ~/.local/bin/codebase-memory-cli                               # remove the binary
+rm -rf ~/.cache/codebase-memory-mcp/                              # optional: delete all indexes
 ```
 
-Removes owned agent config entries, skills, hooks, instructions, and the installed binary. Existing graph indexes are listed and deleted only after confirmation.
-
-The install script placed beside the binary is **reported, not deleted** — uninstall prints its path and the `rm` command for it. It is left alone on purpose: it may be your own copy, a symlink into a checkout, or managed by a package manager, and an uninstaller should not delete a file it cannot prove it owns.
+To drop the index of a single project instead: `codebase-memory-cli cli delete_project --project <name>`.
 
 ## Features
 
@@ -258,25 +298,25 @@ The install script placed beside the binary is **reported, not deleted** — uni
 - **RAM-first pipeline**: LZ4 compression, in-memory SQLite, single dump at end. Memory released after.
 
 ### Distribution & operation
-- **Native runtime set, zero infrastructure services**: SQLite-backed, persists to `~/.cache/codebase-memory-mcp/`
-- **Auto-sync**: Background watcher detects file changes and re-indexes automatically
+- **Single local binary, zero infrastructure services**: SQLite-backed, persists to `~/.cache/codebase-memory-mcp/`
+- **Explicit refresh**: re-run `index_repository` to pick up changes (incremental; no background watcher in this fork)
 - **Route nodes**: REST endpoints are first-class graph entities
-- **CLI mode**: `codebase-memory-mcp cli search_graph '{"project": "my-project", "name_pattern": ".*Handler.*"}'`
-- **Available on**: npm, PyPI, Homebrew, Scoop, Winget, Chocolatey, AUR, `go install`
+- **CLI-only**: `codebase-memory-cli cli search_graph --project my-project --name-pattern '.*Handler.*' --format json`
+- **Built from source**: `scripts/build.sh --cli-only` — no package-manager or release downloads for this fork
 
 ## Team-Shared Graph Artifact
 
 Commit a single compressed file to your repo and your teammates skip the reindex.
 
-`.codebase-memory/graph.db.zst` is a zstd-compressed snapshot of the knowledge graph that lives next to your source. When you index, the artifact is written or refreshed; when a teammate clones the repo and runs `codebase-memory-mcp` for the first time, the artifact is decompressed and incremental indexing fills in their local diff.
+`.codebase-memory/graph.db.zst` is a zstd-compressed snapshot of the knowledge graph that lives next to your source. When you index, the artifact is written or refreshed; when a teammate clones the repo and runs `codebase-memory-cli cli index_repository` for the first time, the artifact is decompressed and incremental indexing fills in their local diff.
 
 - **Format**: SQLite database, indexes stripped, `VACUUM INTO` compacted, then zstd 1.5.7 compressed (8–13:1 ratio typical)
 - **Two tiers**:
   - **Best** (`zstd -9` + index strip + `VACUUM INTO`) — written on explicit `index_repository`
-  - **Fast** (`zstd -3`) — written by the watcher for low-latency incremental updates
+  - **Fast** (`zstd -3`) — written by upstream's background watcher (not present in this fork)
 - **Bootstrap**: when no local DB exists but the artifact is present, `index_repository` imports the artifact first, then runs incremental indexing — avoiding the full reindex cost
 - **No merge pain**: a `.codebase-memory/.gitattributes` line with `merge=ours` is auto-created on first export, so concurrent edits don't produce conflicts on the binary artifact
-- **Commit it deliberately**: the artifact is rewritten on every index, including the watcher's Fast tier, and git stores each rewrite as a full new blob. Committing every refresh is what turns a 20 MB file into gigabytes of history — one team reached ~6 GB across ~350 commits of this single path. Pick a cadence (a release, a milestone, a nightly job) rather than committing every save.
+- **Commit it deliberately**: the artifact is rewritten on every index, and git stores each rewrite as a full new blob. Committing every refresh is what turns a 20 MB file into gigabytes of history — one team reached ~6 GB across ~350 commits of this single path. Pick a cadence (a release, a milestone, a nightly job) rather than committing every save.
 - **Git LFS, if it must move on every commit**: track it from the **repo-root** `.gitattributes` and leave the auto-created `.codebase-memory/.gitattributes` in place — the nearer file goes on supplying `merge=ours`, and only `filter` comes from the root:
   ```gitattributes
   .codebase-memory/graph.db.zst filter=lfs diff=lfs merge=lfs -text
@@ -288,19 +328,22 @@ The result is similar in spirit to graphify's `graphify-out/` directory, but as 
 
 ## How It Works
 
-codebase-memory-mcp is a **structural analysis backend** — it builds and queries the knowledge graph. It does **not** include an LLM. Instead, it relies on your MCP client (Claude Code, or any MCP-compatible agent) to be the intelligence layer.
+codebase-memory-cli is a **structural analysis backend** — it builds and queries the knowledge graph. It does **not** include an LLM. Your coding agent (e.g. GitHub Copilot in Agent mode) is the intelligence layer, and it talks to the graph by running terminal commands:
 
 ```
 You: "what calls ProcessOrder?"
 
-Agent calls: trace_path(function_name="ProcessOrder", direction="inbound")
+Copilot runs: codebase-memory-cli cli trace_path --project my-project \
+                --function-name ProcessOrder --direction inbound --format json
 
-codebase-memory-mcp: executes graph query, returns structured results
+codebase-memory-cli: executes the graph query, prints JSON, exits
 
-Agent: presents the call chain in plain English
+Copilot: presents the call chain in plain English
 ```
 
-**Why no built-in LLM?** Other code graph tools embed an LLM for natural language → graph query translation. This means extra API keys, extra cost, and another model to configure. With MCP, the agent you're already talking to *is* the query translator.
+**Why no built-in LLM?** Other code graph tools embed an LLM for natural language → graph query translation. That means extra API keys, extra cost, and another model to configure. Here, the agent you're already talking to *is* the query translator.
+
+**Why CLI instead of MCP?** Some organizations do not permit MCP servers or long-running developer daemons. A one-shot CLI is auditable, needs no registration in any agent config, and leaves nothing running.
 
 ## Performance
 
@@ -318,113 +361,24 @@ Benchmarked on Apple M3 Pro:
 
 **RAM-first pipeline**: All indexing runs in memory (LZ4 HC compressed read, in-memory SQLite, single dump at end). Memory is released back to the OS after indexing completes.
 
-**Token efficiency**: Five structural queries consumed ~3,400 tokens via codebase-memory-mcp versus ~412,000 tokens via file-by-file grep exploration — a **99.2% reduction**.
+**Token efficiency**: Five structural queries consumed ~3,400 tokens via the code graph versus ~412,000 tokens via file-by-file grep exploration — a **99.2% reduction**.
 
 To measure comparable quality, latency, and agent-efficiency metrics on your own workload, see [Measuring quality, latency, and agent savings](docs/MEASURING_SAVINGS.md). Exact reproduction of the figures above requires the original inputs and raw artifacts.
 
 ## Troubleshooting & Diagnostics
 
-codebase-memory-mcp runs **100% locally and collects no telemetry** — your code, queries, environment, and usage never leave your machine. That privacy guarantee also means that when you hit something we can't reproduce on our side (a slow memory climb over hours, a performance regression, a leak that only appears after days of real use), **we have no data at all unless you choose to send it.** Here is how to capture it yourself.
+codebase-memory-cli runs **100% locally and collects no telemetry**. When something goes wrong, the information is on your own terminal:
 
-### Capture a diagnostics log
+- **stdout** carries only the command result (JSON with `--format json`).
+- **stderr** carries progress and errors. On failure a command prints a JSON `error` object on stderr and exits with status `1`.
+- Add `--verbose` (outer flag, e.g. `codebase-memory-cli cli --verbose index_repository ...`) to see informational diagnostics, or set `CBM_LOG_LEVEL=debug`.
+- Add `--progress` to see indexing progress even when stderr is redirected.
 
-Set `CBM_DIAGNOSTICS=1` before the first daemon-backed MCP session starts, then reproduce the problem (let it run as long as it takes — a slow leak needs time to show in the trend). The shared daemon captures this setting from the session that starts it. If it is already running, close all daemon-backed sessions so it exits before changing the setting. The daemon creates a fresh owner-private `cbm-diagnostics-<pid>-<random>` directory below the system temp directory (`$TMPDIR` or `/tmp` on macOS/Linux, `%TEMP%` on Windows). The exact paths are recorded by the `diagnostics.start` event in `${CBM_CACHE_DIR}/logs/cbm-daemon.log`:
-
-| File | What it is |
-|------|------------|
-| `trajectory.ndjson` | **The memory trajectory** — one JSON line every 5 s with `rss`, `committed` (Windows commit charge), `peak_*`, `page_faults`, `fd`, and `queries`. **This is the file we need for memory/leak reports** — the *trend over time* is what pinpoints a leak. It is **kept on disk after the server exits** (so you can grab it post-mortem) and rotates to `trajectory.ndjson.1` past ~8 MB. |
-| `snapshot.json` | The latest snapshot only — handy for a quick live check. Removed on clean exit. |
-
-The private randomized directory prevents another local account from pre-placing a link or special file at a predictable diagnostics path. Its `<pid>` component is the shared daemon's process ID, also recorded by the `daemon.start` event. Set the variable consistently in the `env` block of each agent's MCP server config, or export it before launching the first session.
-
-### What to share
-
-When you open a memory/performance issue, **attach the `.ndjson` trajectory** — it contains no source code or query text, only resource counters. If you'd rather not attach a file, paste it (or an agent's summary of it) into the issue: your assistant can read the NDJSON directly and report whether `rss`/`committed` grow monotonically, how fast, and relative to query count — which is exactly what we need to find the cause.
+When reporting an issue, include the exact command, its stderr output, `codebase-memory-cli --version`, and your OS. The output contains paths and symbol names from your project — review it before sharing.
 
 ## Installation
 
-### Pre-built Binaries
-
-| Platform | Archive |
-|----------|---------|
-| macOS (Apple Silicon) | `codebase-memory-mcp-darwin-arm64.tar.gz` |
-| macOS (Intel) | `codebase-memory-mcp-darwin-amd64.tar.gz` |
-| Linux (x86_64) | `codebase-memory-mcp-linux-amd64.tar.gz` |
-| Linux (ARM64) | `codebase-memory-mcp-linux-arm64.tar.gz` |
-| Windows (x86_64) | `codebase-memory-mcp-windows-amd64.zip` |
-
-Every release includes `checksums.txt` with SHA-256 hashes. The executable is self-contained — no adjacent data file is required. Linux `-portable` archives contain the fully static builds; ordinary platform archives use their native system ABI.
-
-> **Windows note**: SmartScreen may show a warning for unsigned software. Click **"More info"** → **"Run anyway"**. Verify integrity with `checksums.txt`.
-
-### Setup Scripts
-
-<details>
-<summary>Automated download + install</summary>
-
-**macOS / Linux:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/scripts/setup.sh | bash
-```
-
-**Windows (PowerShell):**
-
-```powershell
-irm https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/scripts/setup-windows.ps1 | iex
-```
-
-</details>
-
-### AUR (Arch Linux)
-
-```bash
-yay -S codebase-memory-mcp-bin
-```
-
-```bash
-paru -S codebase-memory-mcp-bin
-```
-
-The `codebase-memory-mcp-bin` package is available at: https://aur.archlinux.org/packages/codebase-memory-mcp-bin
-
-### Nix (flake)
-
-The flake exposes two server packages plus the standalone frontend:
-
-| Package | Contents |
-|---------|----------|
-| `default` (`codebase-memory-mcp`) | Standard server, no UI |
-| `codebase-memory-mcp-ui` | Server with the graph UI embedded (`--ui=true` works) |
-| `graph-ui` | Just the built frontend assets (`dist/`) |
-
-Run directly without installing:
-
-```bash
-# Standard server
-nix run github:DeusData/codebase-memory-mcp
-
-# Server with the embedded graph UI
-nix run github:DeusData/codebase-memory-mcp#codebase-memory-mcp-ui -- --ui=true --port=9749
-# then open http://127.0.0.1:9749
-```
-
-Or build a binary into `./result/bin/codebase-memory-mcp`:
-
-```bash
-nix build github:DeusData/codebase-memory-mcp                          # standard
-nix build github:DeusData/codebase-memory-mcp#codebase-memory-mcp-ui   # with UI
-```
-
-Working in a clone? Use `.` in place of the flake URL, e.g. `nix run .#codebase-memory-mcp-ui -- --ui=true`, or drop into a shell that puts the binary on `PATH` with `nix shell .#codebase-memory-mcp-ui`.
-
-> **Note:** launched by hand (not from an MCP client) the server exits as soon as `stdin` closes — that's normal MCP behaviour. Keep `stdin` open while testing the UI, e.g. `sleep infinity | codebase-memory-mcp --ui=true --port=9749`. The `codebase-memory-mcp-ui` package embeds the UI at build time; `nix run`'ing the standard `default` package with `--ui=true` will refuse to start the HTTP server.
-
-### Install via Claude Code
-
-```
-You: "Install this MCP server: https://github.com/DeusData/codebase-memory-mcp"
-```
+This fork is distributed as **source only**. The upstream release archives, install scripts, package-manager packages (npm, PyPI, Homebrew, AUR, Nix, …) and "install via agent" flows all install the upstream MCP server, **not** this CLI.
 
 ### Build from Source
 
@@ -441,225 +395,57 @@ You: "Install this MCP server: https://github.com/DeusData/codebase-memory-mcp"
 </details>
 
 ```bash
-git clone https://github.com/DeusData/codebase-memory-mcp.git
-cd codebase-memory-mcp
-scripts/build.sh --with-ui          # the shipped composition (graph UI embedded)
-scripts/build.sh                    # without the UI (development only)
-# Binary at: build/c/codebase-memory-mcp   (codebase-memory-mcp.exe on Windows)
+git clone https://github.com/shendricks555/codebase-memory-cli.git
+cd codebase-memory-cli
+scripts/build.sh --cli-only              # CLI only
+scripts/build.sh --cli-only --with-ui    # CLI + loopback graph UI
+# Binary at: build/c/codebase-memory-cli
 ```
 
-Every platform ships **one self-contained executable**: the graph UI and the agent integration templates are linked into the binary, so an extracted archive is immediately complete.
+Copy the binary onto your `PATH` (for example `~/.local/bin/`) so that your coding agent can run it by name.
 
-Run the test suite (6,768 tests across 120 suites):
+Run the test suite:
 
 ```bash
-scripts/test.sh                     # full: clean sanitizer build + all suites + guards
+scripts/test.sh                     # full: clean sanitizer build (ASan + UBSan) + all suites + guards
 scripts/test.sh --suites <name>     # one suite, incremental, seconds
 build/c/test-runner --list-suites   # what is available
+scripts/verify-docs.sh              # checks the documented CLI commands still work
+make -f Makefile.cbm security       # security gates: no MCP/daemon, no network egress, loopback-only UI
 ```
 
-`scripts/test.sh` is the same entry the CI gates run, so a local pass means the same thing a CI pass does. The canonical local artifact-flow check builds both stripped/unstripped candidates, defaults to the stripped candidate for this explicitly unscanned local run, packages those exact bytes, extracts the archive, and smokes it:
+After cloning, enable the pre-commit checks with `git config core.hooksPath scripts/hooks`.
+
+## GitHub Copilot Integration
+
+This fork integrates with **GitHub Copilot** only, and only through terminal commands — nothing is registered as an MCP server in any client config.
 
 ```bash
-scripts/ci/smoke-artifact.sh <linux|darwin|windows> <amd64|arm64>
+codebase-memory-cli install [--project DIR] [--dry-run]          # write the integration files
+codebase-memory-cli uninstall --copilot [--project DIR] [--dry-run]   # remove them
 ```
 
-`scripts/package-release.sh` is intentionally a lower-level immutable boundary:
-it accepts only an already-final `--selected-binary` plus its
-`--expected-sha256`; it never builds, strips, signs, or relinks the executable.
+`install` writes into the target repository:
 
-### Manual MCP Configuration
+| File | Purpose |
+|------|---------|
+| `.github/copilot-instructions.md` | A managed section (appended or updated; your own text is preserved) telling Copilot which `codebase-memory-cli` commands answer which questions. |
+| `.github/prompts/cbm-*.prompt.md` | Reusable chat prompts (e.g. *who calls*, *architecture*). |
+| `.vscode/tasks.json` | VS Code tasks for indexing; written only if absent or previously generated. |
 
-<details>
-<summary>If you prefer not to use the install command</summary>
+It prints a JSON report of every file and its `action` (`created`, `appended`, `updated`, `unchanged`, `skipped`). Re-running is safe. Commit these files so your whole team gets the integration.
 
-Add to `~/.claude.json` (user scope) or project `.mcp.json`:
+Works in VS Code, Visual Studio 2022 17.14+, JetBrains IDEs, Android Studio, and Copilot CLI — anywhere Copilot's agent can run terminal commands. Per-IDE notes and the full command table: [`docs/COPILOT_CLI_INTEGRATION.md`](docs/COPILOT_CLI_INTEGRATION.md). Example output files: [`docs/copilot-examples/`](docs/copilot-examples/).
 
-```json
-{
-  "mcpServers": {
-    "codebase-memory-mcp": {
-      "command": "/path/to/codebase-memory-mcp",
-      "args": []
-    }
-  }
-}
-```
-
-Restart your agent. Verify with `/mcp` — you should see `codebase-memory-mcp` with 15 tools.
-
-</details>
-
-## Multi-Agent Support
-
-`install` configures 45 client surfaces: 39 detected automatically and 6
-conditional or explicit. “Conditional” means the installer writes only when the
-documented platform or an explicit, already-existing config path proves the
-target is active. It never flips experimental feature flags, enables plugins,
-YOLO modes, global permission bypasses, or third-party instruction trust.
-
-Where a client has a documented custom-agent format, the installer creates three
-exact-owned definitions from one canonical contract:
-
-- **Scout (Tier 1)** — about 3–4 narrow calls for fast positive, provisional discovery; no absence, exhaustive-impact, or dead-code claims.
-- **Verify (Tier 2, default)** — task-directed graph evidence, exact source checks, path coverage for every cited file, and scope coverage before negative claims.
-- **Auditor (Tier 3)** — bounded scope, current index generation, complete relevant pagination, broader relationship checks, and explicit unresolved limitations.
-
-Every direct tier batches `check_index_coverage` for its evidence paths and reads
-flagged ranges or skipped/excluded files directly. A clean coverage result means
-only “no recorded gap,” never proof of completeness. Clients without safe child
-MCP access receive the same three tiers as parent-handoff agents; the parent must
-supply project, generation, pagination state, graph evidence, and coverage
-results. Updates migrate only byte-identical prior Verify definitions and never
-overwrite user-modified agents.
-
-| Agent | Activation | MCP config | Durable context / augmentation |
-|-------|------------|------------|--------------------------------|
-| Claude Code | Detected | `~/.claude.json` | Skill + three exact-tool graph agents; `SessionStart`, `SubagentStart`, non-blocking `PreToolUse` for `Grep`/`Glob`/`Bash`, and post-`Read` coverage |
-| Codex CLI | Detected | `$CODEX_HOME/config.toml` | Managed `AGENTS.md` activation pointer, skill, three read-only agents; `SessionStart` + `SubagentStart` |
-| Gemini CLI | Detected | `.gemini/settings.json` | `GEMINI.md`, three explicit read/graph-tool subagents; `BeforeTool`, `AfterTool` `read_file` coverage, and `SessionStart` |
-| Zed | Detected | platform `settings.json` (JSONC) | `AGENTS.md` + shared skill |
-| OpenCode | Detected | `$OPENCODE_CONFIG` or resolved global config | `AGENTS.md`, skill, three deny-by-default read-only agents; plugin adds grep/glob graph lookup, post-`read` coverage, first-tool-result session context, and post-compaction reinjection |
-| Antigravity | Detected | `.gemini/config/mcp_config.json` | `.gemini/GEMINI.md` |
-| Aider | Detected | — | `CONVENTIONS.md` via `.aider.conf.yml` |
-| KiloCode | Detected | `.config/kilo/kilo.jsonc` | Rule + three graph-tool subagents with deny-by-default permissions |
-| VS Code | Detected | platform `Code/User/mcp.json` | `~/.copilot/skills`, three read-only agents, `sessionStart` + `subagentStart` |
-| Cursor | Detected | `.cursor/mcp.json` | Skill + three read-only parent-handoff agents; context hooks withheld because session injection races and `readonly` blocks MCP |
-| Windsurf | Detected | `~/.codeium/windsurf/mcp_config.json` | Always-on `global_rules.md` |
-| Augment / Auggie | Detected | `~/.augment/settings.json` | Rule, three read-only handoff subagents, `SessionStart` + post-`view` coverage |
-| OpenClaw | Detected | `$OPENCLAW_CONFIG_PATH` or state `openclaw.json` | Active-workspace `AGENTS.md` + `TOOLS.md`; compaction reinjection |
-| Kiro | Detected | `$KIRO_HOME/settings/mcp.json` | Steering, skill, three JSON agents with isolated Scout/Analysis-profile MCP and explicit graph-tool selectors (`includeMcpJson: false`) |
-| Junie | Detected | `.junie/mcp/mcp.json` | Skill + three graph subagents for EAP-capable builds; Scout and Analysis server aliases hard-limit the tier tool surfaces; no ineffective EAP `SessionStart` hook |
-| Hermes | Detected | `$HERMES_HOME/config.yaml` | Skill + fail-open `pre_llm_call` context augmentation |
-| OpenHands | Detected | `.openhands/mcp.json` | Shared `.agents/skills/codebase-memory/SKILL.md` |
-| Cline | Detected | `~/.cline/mcp.json` + `${CLINE_DATA_DIR:-~/.cline/data}/settings/cline_mcp_settings.json` | Rule + skill; automatic file hooks withheld because they auto-activate and their output is not reliably consumed; child agents cannot use MCP |
-| Warp | Detected, skill only | UI, Warp Drive, or per invocation (manual) | Shared `~/.agents/skills/codebase-memory/SKILL.md` |
-| Qwen Code | Detected | `.qwen/settings.json` | `QWEN.md`, skill, three explicit read/graph-tool agents; `SessionStart`, `SubagentStart`, and post-`ReadFile` coverage |
-| GitHub Copilot CLI | Detected | `$COPILOT_HOME/mcp-config.json` | Instructions, skill, three read-only agents; `sessionStart` + `subagentStart` |
-| Factory Droid | Detected | `.factory/mcp.json` | `AGENTS.md`, skill, three droids with exact per-tier graph-tool lists (without additive whole-server exposure); `SessionStart` + post-`Read` coverage on macOS/Linux, withheld on Windows |
-| Crush | Detected | `.config/crush/crush.json` | Managed context path with explicit parent-to-child handoff |
-| Goose | Detected | `.config/goose/config.yaml` | `.goosehints` |
-| Mistral Vibe | Detected | `$VIBE_HOME/config.toml` | `AGENTS.md`, skill, and three matched agent/prompt pairs with explicit read-only graph-tool allowlists |
-| Grok Build | Detected | `$GROK_HOME/config.toml` | Owned `rules/codebase-memory.md`, skill, three graph agents with named-server `mcpInheritance` and exact `server__tool` dispatcher ids; context hooks withheld because its passive hook events discard stdout |
-| Qoder CLI | Detected | `~/.qoder/settings.json` | Skill, three directly MCP-attached agents with named-server scoping and exact per-tier graph-tool lists; `SessionStart`, `SubagentStart`, and post-`Read` coverage, including documented PowerShell execution on Windows |
-| Kimi Code CLI | Detected | `$KIMI_CODE_HOME/mcp.json` (default `~/.kimi-code`) | Same-root `AGENTS.md` + skill; fail-open `UserPromptSubmit` hook in `config.toml` |
-| GitLab Duo CLI | Detected | `$GLAB_CONFIG_DIR/duo/mcp.json` or platform fallback | Fail-open user `SessionStart` on macOS/Linux; hook withheld on Windows; no experimental global skill enablement |
-| Rovo Dev CLI | Detected | configured override or `~/.rovodev/mcp.json` | Global `AGENTS.md`, skill + three read-only handoff subagents; no undocumented hook |
-| Amp | Detected | `~/.config/agents/skills/codebase-memory/mcp.json` | Colocated skill + `~/.config/amp/AGENTS.md`; no plugin |
-| Devin CLI / Local | Detected | `~/.config/devin/config.json` (platform app-data path on Windows) | Same-root `AGENTS.md` + skill; macOS/Linux `UserPromptSubmit` + `PostCompaction`, and `SessionStart` only when Claude does not already provide it; hooks withheld on Windows |
-| Tabnine | Detected | `~/.tabnine/mcp_servers.json` | MCP only; no experimental/YOLO setting |
-| Continue / cn | Conditional | Existing `~/.continue/config.yaml` or `$CBM_CONTINUE_CONFIG_PATH` | MCP only |
-| Visual Studio | Conditional, Windows | `~/.mcp.json` | MCP only |
-| TRAE | Conditional | Existing `$CBM_TRAE_CONFIG_PATH` | MCP only |
-| Roo Code | Conditional | Existing `$CBM_ROO_CONFIG_PATH` | MCP only |
-| Amazon Q Developer IDE | Detected | `~/.aws/amazonq/default.json` (preserves an existing `agents/default.json` or legacy `mcp.json`) | MCP only |
-| CodeBuddy Code CLI | Detected | `~/.codebuddy/.mcp.json` (preserves an active deprecated/legacy file) | `CODEBUDDY.md`, skill, three read-only graph agents; beta hooks are not auto-installed |
-| IBM Bob Shell | Detected by `bob` | `~/.bob/mcp_settings.json` | Shared rule; no invented hook or agent |
-| Pochi | Detected | `~/.pochi/config.jsonc` (`mcp`) | `README.pochi.md`, skill, and three `readFile`-only parent-handoff agents |
-| Pi | Detected | — | `~/.pi/agent/AGENTS.md` + skill; MCP/subagents require an explicit reviewed extension |
-| IBM Bob IDE | Conditional | Existing `~/.bob/mcp.json` | Shared rule + IDE skill; no invented hook or agent |
-| Oh My Pi (omp) | Detected | Effective agent directory (`OMP_PROFILE` / `PI_CODING_AGENT_DIR`; default `~/.omp/agent/mcp.json`) | Skill and three direct-MCP graph-tool subagents (Scout/Verify/Auditor); preserves user `AGENTS.md` |
-| Sourcegraph Cody | Explicit opt-in | Existing `$CBM_CODY_CONFIG_PATH` | MCP only |
-
-For Codex, install keeps only a tiny managed activation pointer in global
-`$CODEX_HOME/AGENTS.md`; all detailed behavior lives in the installed `codebase-memory` skill.
-Fresh installs create the pointer, upgrades replace the legacy full managed block while preserving
-all user-owned bytes, and uninstall removes only the managed pointer.
-
-### Sessions, compaction, and subagents
-
-Hooks installed by this project are fail-open and context-only. Claude Code's
-`PreToolUse` observes `Grep`/`Glob`/`Bash` and injects matching graph symbols as
-`additionalContext`; `PostToolUse` on `Read` adds targeted coverage context when
-the graph could not fully parse or index that file. It never denies or replaces
-the requested tool call.
-
-Claude Code, Codex CLI, Qwen Code, GitHub Copilot CLI, and VS Code's Copilot
-runtime receive paired session/subagent context where the vendor exposes a
-documented context-output contract. Codex users must review and trust installed
-hooks through `/hooks`; changing a hook definition changes its trust hash, so an
-update can require re-trust. Qoder uses `SessionStart`, `SubagentStart`, and
-post-`Read` coverage, including its documented PowerShell executor on Windows.
-Kimi uses `UserPromptSubmit`, while Hermes uses `pre_llm_call`; both retain their
-documented Windows execution paths. Devin installs
-`UserPromptSubmit` and `PostCompaction` on macOS/Linux and adds `SessionStart`
-only when Claude's equivalent managed hook is not present. GitLab Duo gets a
-narrowly scoped macOS/Linux user `SessionStart` entry on its experimental hook
-surface. GitLab Duo, Devin, and Factory hooks are withheld on Windows
-because those vendors do not document a deterministic shell/executor contract
-there. Gemini CLI, Factory Droid, and Augment also add documented post-read/view
-coverage context but expose no equivalent documented child-start context.
-
-For runtimes without a stable context-producing lifecycle event, durable files
-carry the contract across fresh sessions and compaction: verify the graph project
-and index freshness, query structural facts in the parent, then pass the project,
-qualified symbols, paths, and call-chain evidence in every delegated task.
-Claude, Codex, Gemini, Kiro, Qwen, Copilot, CodeBuddy, OpenCode, Kilo, Vibe,
-Qoder, Junie, Factory, and Grok Build receive Scout, Verify, and Auditor graph profiles.
-Kiro embeds this MCP server with `--tool-profile scout` for Scout and
-`--tool-profile analysis` for Verify/Auditor. Junie registers equivalent named
-server aliases because its subagent schema filters by server rather than by
-individual tool. Both process profiles use positive allowlists: Scout exposes
-seven fast inspection tools, Analysis exposes eleven, and future or mutating
-tools remain unavailable until explicitly reviewed. If either Junie alias
-collides with user configuration, the installer preserves it and installs
-parent-handoff profiles instead. Qoder combines its documented named-server
-selection with exact tier-specific MCP tool IDs. Factory uses exact registered
-MCP tool IDs without its additive `mcpServers` field, which would expose the
-whole server. Codex, Kilo, Vibe, and other capable formats likewise enumerate
-the narrowest supported tool set. Rovo, Cursor, Augment, Pochi, and Cline use parent handoff where direct
-child MCP is unavailable or unsafe; Pochi is limited to `readFile`, and Cline
-child agents cannot use MCP.
-
-Cline's file hooks auto-activate when present, and current Cline does not
-reliably consume their context output, so automatic adapters are withheld and
-older owned adapters are cleaned up. CodeBuddy's beta, version-gated hooks are
-not auto-installed. Junie's EAP
-`SessionStart` output is documented as ignored, so no context hook is installed.
-Junie custom agents remain EAP-dependent. Qoder can resolve higher-priority
-project or plugin agents before user agents with the same name; reload the
-client after installation or profile changes.
-Cursor context
-hooks are withheld: session context injection has a known race, `subagentStart`
-is control-only, and read-only subagents cannot safely receive MCP access. Grok Build's
-passive hook events (`SessionStart`, `SubagentStart`, `PostToolUse`) discard
-stdout and `PreToolUse` honors only deny/rewrite decisions, so its context hooks
-are withheld; Grok also reads Claude and Cursor MCP, skill, and hook files
-through its compat layer, and the native `config.toml` entry shadows that copy
-by name. Rovo
-has no documented session context-output hook, and Bob
-documents neither a suitable hook nor a custom-agent surface. Those surfaces are
-not approximated with invented augmentation. Kimi plugins, Amp plugins, and
-GitLab experimental global skills remain opt-in.
-
-OpenClaw reinjects the `Codebase Knowledge Graph (codebase-memory-mcp)` AGENTS
-section after compaction and places the same guidance in `TOOLS.md`, the bootstrap
-files inherited by its subagents. Automatic augmentation covers the active/default
-workspace. Separate `agents.list[].workspace` directories require making that
-workspace active for installation or copying the managed block there.
-
-The installed Claude shim is named `cbm-code-discovery-gate` for backward
-compatibility; despite the legacy name, it never gates or blocks.
-
-### Manual or UI-managed integrations
-
-These are intentionally not counted as automatic installs: Qodo MCP is added
-through its UI and may be governed by enterprise allowlists; Warp MCP is managed
-through Warp Drive/UI or per invocation (only the shared skill is automatic);
-JetBrains AI Assistant / ACP is IDE-managed; GitHub Copilot coding agent, Jules,
-and CodeRabbit are cloud/repository-managed; Replit exposes a remote/service
-integration rather than a stable local user-global client; BLACKBOX AI does not
-document a stable arbitrary user-global MCP/instruction/agent schema; Plandex has
-no stable global registry safe to mutate; and SWE-agent uses explicit YAML and is
-no longer a suitable automatic global target.
+The upstream multi-agent installer (Claude Code, Codex, Cursor, and 40+ other MCP clients, plus their hooks and skills) is not part of this fork.
 
 ## CLI Mode
 
-Every MCP tool can be invoked as a local, one-shot command. CLI tools neither start nor connect to the coordination daemon and leave no standing process behind. They hold a crash-safe exact-build admission lease only for the command lifetime. `index_repository` is the only exception internally: it starts a temporary, exact-build supervised worker for the index, then stops that worker before the CLI command exits; the worker holds its own lease until exit.
+Every graph tool is a local, one-shot command: `codebase-memory-cli cli <tool> [flags]`. There is no daemon to start or connect to, and no process is left running afterwards. `index_repository` may use a temporary supervised worker internally, which is stopped before the command exits.
 
-Commands that mutate graph data use shared OS-backed, per-project locks. This serializes conflicting work from CLI and MCP sessions on the same project while allowing unrelated projects to proceed independently.
+Commands that mutate graph data use shared OS-backed, per-project locks. This serializes conflicting CLI commands on the same project while allowing unrelated projects to proceed independently.
 
-When stderr is an interactive terminal, the CLI automatically shows lifecycle and indexing progress. Pass `--progress` to force the same feedback when stderr is redirected or the command is run non-interactively. Pass `--quiet` to disable automatic terminal progress and ordinary diagnostics while retaining errors; it cannot be combined with `--progress` or outer `cli --verbose`. Routine informational logs are quiet by default; pass outer `cli --verbose` to include them. Progress and logs use stderr while stdout remains reserved for the command result. Read tools return a compact tree by default; pass a tool's `--format json` for machine-readable payload JSON, or outer `--json` for the full MCP envelope.
+When stderr is an interactive terminal, the CLI automatically shows lifecycle and indexing progress. Pass `--progress` to force the same feedback when stderr is redirected or the command is run non-interactively. Pass `--quiet` to disable automatic terminal progress and ordinary diagnostics while retaining errors; it cannot be combined with `--progress` or outer `cli --verbose`. Routine informational logs are quiet by default; pass outer `cli --verbose` to include them. Progress and logs use stderr while stdout remains reserved for the command result. Read tools return a compact tree by default; pass a tool's `--format json` for machine-readable payload JSON, or outer `--json` for the full result envelope.
 
 Large compact-tree tables may start with a response-local `<section>_refs` directory and an explicit `<section>_ref_rule`. A cell such as `@0+handler.go` reconstructs to ref `0`'s prefix plus `handler.go`. References are local to that sibling `<section>` table and expansion is non-recursive: entries inside `<section>_refs` are always literal prefixes. This is limited to declared path and qualified-name columns and activates only when the exact rendered table is at least 15% and 64 bytes smaller and a conservative model-neutral token-shape proxy also improves by at least 1%. Search and trace likewise render direct and prefix-grouped tree shapes and keep the smaller complete representation, so singleton or scattered answers do not pay directory overhead. Keys are declared once per table but never cryptically abbreviated, and `--format json` keeps stable literal strings for machine consumers. Both gates are deterministic; exact token counts still depend on the caller's tokenizer.
 
@@ -670,31 +456,33 @@ Every response is standard UTF-8. Identifiers, paths, and raw search previews pr
 Use `cli <tool> --help` to see the flags generated from that tool's input schema:
 
 ```bash
-codebase-memory-mcp cli index_repository --repo-path /path/to/repo
-codebase-memory-mcp cli list_projects
+codebase-memory-cli cli index_repository --repo-path /path/to/repo
+codebase-memory-cli cli list_projects
 
 # Use the "name" returned by list_projects as the project value.
-codebase-memory-mcp cli search_graph --project my-project --name-pattern '.*Handler.*' --label Function
-codebase-memory-mcp cli trace_path --project my-project --function-name Search --direction both
-codebase-memory-mcp cli query_graph --project my-project --query 'MATCH (f:Function) RETURN f.name LIMIT 5'
+codebase-memory-cli cli search_graph --project my-project --name-pattern '.*Handler.*' --label Function
+codebase-memory-cli cli trace_path --project my-project --function-name Search --direction both
+codebase-memory-cli cli query_graph --project my-project --query 'MATCH (f:Function) RETURN f.name LIMIT 5'
 
 # Force human-readable progress without contaminating stdout.
-codebase-memory-mcp cli --progress index_repository --repo-path /path/to/repo
+codebase-memory-cli cli --progress index_repository --repo-path /path/to/repo
 # Suppress automatic terminal progress and non-error diagnostics.
-codebase-memory-mcp cli --quiet list_projects --format json
-codebase-memory-mcp cli search_graph --project my-project --label Function --format json
-codebase-memory-mcp cli list_projects --format json --detail stats | jq '.projects[].name'
+codebase-memory-cli cli --quiet list_projects --format json
+codebase-memory-cli cli search_graph --project my-project --label Function --format json
+codebase-memory-cli cli list_projects --format json --detail stats | jq '.projects[].name'
 ```
 
 JSON arguments can also be piped on stdin, for tools that take arguments. A tool whose input schema declares none — `list_projects` — never reads stdin, so it stays responsive when it inherits a pipe the caller never closes (the default for `child_process.spawn` and similar wrappers). Inline JSON remains accepted for backward compatibility but is deprecated in favor of flags, `--args-file`, or stdin.
 
-## MCP Tools
+## CLI Tools
+
+Run any of these as `codebase-memory-cli cli <tool> --help` to see its flags. `scripts/cbm <tool> [flags]` is a shorthand that adds `--quiet --format json`.
 
 ### Indexing
 
 | Tool | Description |
 |------|-------------|
-| `index_repository` | Index a repository into the graph. Auto-sync keeps it fresh after that. |
+| `index_repository` | Index (or incrementally re-index) a repository into the graph. Re-run it after changes. |
 | `list_projects` | List all indexed projects with node/edge counts. |
 | `delete_project` | Remove a project and all its graph data. |
 | `index_status` | Check indexing status of a project. |
@@ -716,7 +504,7 @@ JSON arguments can also be piped on stdin, for tools that take arguments. A tool
 
 `manage_adr(mode='set_sections')` writes one or more sections by name and splices them into the stored document, so text outside the named sections — including a preamble, code fences and section ordering — is preserved byte-for-byte. Any `## Heading` works, not just the conventional PURPOSE / STACK / ARCHITECTURE / PATTERNS / TRADEOFFS / PHILOSOPHY set; names match exactly, including case. Writing the same section twice is a no-op, so a retry after a lost response cannot duplicate content.
 
-`manage_adr` query modes (`get` and `sections`) use the server's cached query store so they can proceed while a same-project reindex is running. If another process publishes a replacement store during reindexing, they can return the pre-publication ADR until idle eviction refreshes that cache. Updates remain serialized through the project mutation guard.
+`manage_adr` updates are serialized through the per-project mutation lock.
 
 ## Graph Data Model
 
@@ -753,28 +541,23 @@ See [docs/cbmignore.md](docs/cbmignore.md) for the full `.cbmignore` how-to: syn
 ## Configuration
 
 ```bash
-codebase-memory-mcp config list                          # show all settings
-codebase-memory-mcp config set auto_index true           # auto-index on session start
-codebase-memory-mcp config set auto_index_limit 50000    # max files for auto-index
-codebase-memory-mcp config set auto_watch false          # don't register background git watcher (default: true)
-codebase-memory-mcp config set watcher_enabled false     # stop the watcher thread entirely (default: true)
-codebase-memory-mcp config reset auto_index              # reset to default
+codebase-memory-cli config list            # show all settings
+codebase-memory-cli config set ui_port 9750
+codebase-memory-cli config reset ui_port   # reset to default
 ```
+
+`config list` also shows upstream session settings (`auto_index`, `auto_index_limit`, `auto_watch`, `watcher_enabled`, `ui_enabled`). They only affect upstream's MCP sessions and daemon, which do not exist in this build — in the CLI you index explicitly and start the UI with `codebase-memory-cli ui`.
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CBM_ALLOWED_ROOT` | *(unset)* | Confine `index_repository` to paths within this directory. When set, a `repo_path` that resolves (after symlink / `..` resolution) outside this root is refused, and the same check now applies to the graph UI's `POST /api/index` route rather than only to the MCP tool. Unset imposes no *containment* restriction — but see the always-on limits below, which apply whether or not this is set. Useful when the server may be driven by an untrusted caller, e.g. agentic or multi-tenant deployments. |
-| `CBM_CACHE_DIR` | `~/.cache/codebase-memory-mcp` | Override the database storage directory. All project indexes and config are stored here. One account can use only one canonical cache root at a time; close active CBM sessions/commands before switching it. |
-| `CBM_DIAGNOSTICS` | `false` | Set to `1` or `true` to enable the shared daemon's periodic `snapshot.json` and retained `trajectory.ndjson` below a fresh owner-private directory in the system temp directory. Exact paths are logged by `diagnostics.start`. |
-| `CBM_DOWNLOAD_URL` | *(GitHub releases)* | Override the download URL for updates. Used for testing or self-hosted deployments. |
-| `CBM_LOG_LEVEL` | role-aware | Set the minimum log level. Thin MCP/CLI/hook frontends default to `warn`; the detached daemon and its supervised index workers default to `info` so lifecycle and liveness records remain available. Accepted values (case-insensitive): `debug`, `info`, `warn`, `error`, `none` — or their numeric equivalents `0`–`4`. A physical worker retains INFO liveness records even under a stricter override because its private log drives the supervisor's no-progress timeout. Frontend messages go to that session's stderr; detached daemon events go to `${CBM_CACHE_DIR}/logs/cbm-daemon.log`. Stdout is reserved for MCP JSON-RPC. |
-| `CBM_WORKERS` | *(detected)* | Override the parallel-indexing worker count returned by `cbm_default_worker_count`. Useful inside containers where `sysconf(_SC_NPROCESSORS_ONLN)` reports host CPUs rather than the cgroup's effective quota. Range 1–256; invalid values are ignored with a warning. |
-| `CBM_MEM_BUDGET_MB` | *(detected)* | Override the in-memory graph budget with an explicit cap in MiB, taking precedence over the `ram_fraction × total_RAM` default. Useful on bare-metal hosts without a cgroup limit, or to pin a budget *below* the cgroup limit so headroom is left for sibling processes. Must be a positive integer; it is clamped to detected total RAM (logged as `mem.budget.clamped`), and non-numeric or non-positive values are ignored with a warning (`mem.budget.env.invalid`). |
-| `CBM_DUMP_VERIFY_MIN_RATIO` | `0.5` | After indexing, compare persisted SQLite node count to the in-memory dump count. When persisted nodes fall below this fraction of committed nodes (and committed > 50), `index_repository` returns `status:"degraded"` instead of silent `indexed`. Range 0–1; set `0` to disable. Invalid values are ignored with a warning. |
-
-Environment used by daemon-owned components—such as diagnostics, daemon logging, and process-wide indexing resource limits—is captured from the first daemon-backed session that starts the daemon. Later sessions join that process and cannot replace those values. To change them, close all daemon-backed sessions, update the relevant agent configurations consistently, and restart a session. `CBM_ALLOWED_ROOT` remains session-specific, a conflicting `CBM_CACHE_DIR` is rejected, and one-shot CLI commands read their own environment without starting the daemon.
+| `CBM_ALLOWED_ROOT` | *(unset)* | Confine `index_repository` to paths within this directory. A `repo_path` that resolves (after symlink / `..` resolution) outside this root is refused; the same check applies to the graph UI's `POST /api/index` route. Useful when commands may be driven by an untrusted caller such as an autonomous agent. |
+| `CBM_CACHE_DIR` | `~/.cache/codebase-memory-mcp` | Override the database storage directory. All project indexes and config are stored here. |
+| `CBM_LOG_LEVEL` | `warn` | Minimum log level on stderr: `debug`, `info`, `warn`, `error`, `none` (or `0`–`4`). Stdout is reserved for command results. |
+| `CBM_WORKERS` | *(detected)* | Override the parallel-indexing worker count. Useful inside containers where the reported CPU count exceeds the cgroup quota. Range 1–256; invalid values are ignored with a warning. |
+| `CBM_MEM_BUDGET_MB` | *(detected)* | Explicit in-memory graph budget in MiB, overriding the `ram_fraction × total_RAM` default. Clamped to detected total RAM; invalid values are ignored with a warning. |
+| `CBM_DUMP_VERIFY_MIN_RATIO` | `0.5` | After indexing, if persisted nodes fall below this fraction of committed nodes (and committed > 50), `index_repository` returns `status:"degraded"` instead of `indexed`. Range 0–1; `0` disables. |
 
 ```bash
 # Store indexes in a custom directory
@@ -807,18 +590,20 @@ Project config overrides global for conflicting extensions. An entry whose langu
 
 ## Persistence
 
-SQLite databases stored at `~/.cache/codebase-memory-mcp/`. Persists across restarts (WAL mode, ACID-safe). To reset: `rm -rf ~/.cache/codebase-memory-mcp/`.
+SQLite databases stored at `~/.cache/codebase-memory-mcp/` (the directory name is shared with upstream). Persists across runs (WAL mode, ACID-safe). To reset: `rm -rf ~/.cache/codebase-memory-mcp/`.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| `/mcp` doesn't show the server | Check `.mcp.json` path is absolute. Restart agent. Test: `echo '{}' \| /path/to/binary` should output JSON. |
-| `index_repository` fails | Pass absolute path: `index_repository(repo_path="/absolute/path")` |
-| `trace_path` returns 0 results | Use `search_graph(name_pattern=".*PartialName.*")` first to find the exact name. |
-| Queries return wrong project results | Add `project="name"` parameter. Use `list_projects` to see names. |
-| Binary not found after install | Add to PATH: `export PATH="$HOME/.local/bin:$PATH"` |
-| UI not loading | Ensure you ran `--ui=true`. Check `http://localhost:9749`. |
+| `command not found: codebase-memory-cli` | Copy `build/c/codebase-memory-cli` to a directory on `PATH` (e.g. `~/.local/bin`), open a new terminal, and restart the IDE. |
+| Copilot answers without running `codebase-memory-cli` | Use Copilot Chat **Agent** mode, run `codebase-memory-cli install` in the repo, reload the window, and ask it explicitly to use codebase-memory-cli. |
+| `index_repository` fails | Pass an absolute path: `--repo-path "$PWD"`. Check `CBM_ALLOWED_ROOT` if set. |
+| `trace_path` returns 0 results | Find the exact name first: `cli search_graph --project <name> --name-pattern '.*Partial.*'`. |
+| Wrong or missing project | Use the exact `name` from `cli list_projects --format json`. |
+| Results look stale | Re-run `cli index_repository` — there is no background watcher. |
+| `ui` is an unknown command / UI not loading | Rebuild with `scripts/build.sh --cli-only --with-ui`, run `codebase-memory-cli ui`, open `http://127.0.0.1:9749`. |
+| `update is not available in the CLI-only build` | Expected — `git pull` and rebuild instead. |
 
 ## Hybrid LSP
 
@@ -826,7 +611,7 @@ SQLite databases stored at `~/.cache/codebase-memory-mcp/`. Persists across rest
 
 Tree-sitter alone gives a syntactic AST. That handles naming, structure, and call sites well, but it can't tell you that `user.profile.display_name()` resolves to `Profile.display_name` declared three modules away — tree-sitter doesn't track imports, generics, inheritance, or stdlib types.
 
-codebase-memory-mcp ships a **lightweight C implementation of language type-resolution algorithms, structurally inspired by and compatible with major language servers** (tsserver / typescript-go, pyright, gopls, Roslyn, Eclipse JDT, rust-analyzer), embedded directly into the native executable. No language server process, no per-project setup, no API key. We call this layer **Hybrid LSP**: it runs alongside tree-sitter on every parse and refines invocation resolution (`CALLS` / `RESOLVED_CALLS`) and callable-value resolution (`CALL_REFERENCE`, with ambiguous values retained as `USAGE`) using type information, so the resulting graph mirrors what an IDE "Go to Definition" would resolve.
+codebase-memory-cli ships a **lightweight C implementation of language type-resolution algorithms, structurally inspired by and compatible with major language servers** (tsserver / typescript-go, pyright, gopls, Roslyn, Eclipse JDT, rust-analyzer), embedded directly into the native executable. No language server process, no per-project setup, no API key. We call this layer **Hybrid LSP**: it runs alongside tree-sitter on every parse and refines invocation resolution (`CALLS` / `RESOLVED_CALLS`) and callable-value resolution (`CALL_REFERENCE`, with ambiguous values retained as `USAGE`) using type information, so the resulting graph mirrors what an IDE "Go to Definition" would resolve.
 
 **Languages with full Hybrid LSP:**
 
@@ -866,43 +651,34 @@ Also supported (not yet benchmarked): Ada, Agda, Apex, Assembly (NASM), Astro, A
 
 ```
 src/
-  main.c              Entry point (MCP stdio server + CLI + install/update/config)
-  daemon/             Per-account session coordination, IPC, lifecycle, shared jobs/watchers
-  mcp/                MCP server (15 tools, JSON-RPC 2.0, session detection, auto-index)
-  cli/                Install/uninstall/update/config (45 client surfaces, hooks, instructions)
+  main.c              Entry point (CLI dispatch: cli / install / uninstall / config / ui)
+  cli/                One-shot CLI commands, Copilot install/uninstall, config
   store/              SQLite graph storage (nodes, edges, traversal, search, Louvain)
   pipeline/           Multi-pass indexing (structure → definitions → calls → HTTP links → config → tests)
   cypher/             Cypher query lexer, parser, planner, executor
   discover/           File discovery (.gitignore, .cbmignore, symlink handling)
-  watcher/            Background auto-sync (git polling, adaptive intervals)
   traces/             Runtime trace ingestion
-  ui/                 Local HTTP server + verified external 3D-UI asset pack
+  ui/                 Loopback-only HTTP server for the 3D graph UI (--with-ui builds)
   foundation/         Platform abstractions (threads, filesystem, logging, memory)
+  mcp/, daemon/,      Upstream MCP server, coordination daemon and watcher —
+  watcher/            excluded from the CLI-only binary via CBM_FORK_CLI_ONLY
 internal/cbm/         Vendored tree-sitter grammars (162 languages) + AST extraction engine
 ```
 
+Upstream-mergeability: fork changes live behind the `CBM_FORK_CLI_ONLY` compile guard and at the CLI/build boundary; the shared core (`src/foundation`, `src/store`, `src/cypher`, `src/pipeline`, `internal/cbm`) tracks upstream.
+
 ## Security
 
-Every release is verified through a multi-layer pipeline before publication:
+This fork is built locally from source, so its guarantees are enforced by repository gates rather than by signed releases:
 
-- **VirusTotal** — all 24 executable candidates (unstripped, debug-stripped and stripped) across the eight release products are scanned before smoke/soak (clean is preferred and only the single-Microsoft `!ml` tolerance documented in [SECURITY.md](SECURITY.md#our-release-policy) may pass; the number of engines that returned a decisive result is recorded as evidence but is VirusTotal fleet availability, not a pass condition). The selected executable is packaged without changing its SHA-256, release notes link the verdict for the exact bytes shipped, and the full per-candidate evidence is published alongside the release as TSVs for anyone auditing the selection. Every distinct object extracted from the shipped containers — `install.sh`, `install.ps1`, `LICENSE`, `THIRD_PARTY_NOTICES.md`, the MCPB `manifest.json` and the unpacked UI assets — is then scanned as well, so the full published surface is covered, not just the executables.
-- **SLSA Level 3** — cryptographic build provenance generated by the trusted GitHub Actions build workflow; verify with `gh attestation verify <file> --repo DeusData/codebase-memory-mcp --signer-workflow DeusData/codebase-memory-mcp/.github/workflows/_build.yml`
-- **Sigstore cosign** — keyless signatures on all artifacts; bundles included in every release
-- **SHA-256 checksums** — `checksums.txt` published with every release; verified by both install scripts before extraction
-- **CodeQL SAST** — blocks release pipeline if any open alerts remain
-- **No language-runtime dependency chain** — libraries are vendored at compile time; the small release-owned runtime assets are checksum-verified and content-addressed
+- **No MCP, no daemon in the binary** — `make -f Makefile.cbm security` runs a static allow-list and string scan of the built binary.
+- **No outbound network** — a network-egress test and a source audit (`scripts/security-network.sh`, `scripts/security-network-source-audit.py`) fail the gate if any non-loopback connection or listener appears.
+- **Loopback-only UI** — `scripts/security-ui.sh` checks that the graph UI binds `127.0.0.1` only.
+- **Fuzzing and sanitizers** — `scripts/security-fuzz.sh`, and `scripts/test.sh` runs every suite under ASan + UBSan.
+- **No test seams in production builds** — `TEST_SEAMS` is enabled only by `scripts/test.sh`, never by `scripts/build.sh`.
+- **Vendored dependencies** — all libraries are vendored and checksum-pinned (`scripts/vendored-checksums.txt`); the build needs no network access.
 
-### v0.7.0 VirusTotal scans
-
-| Binary | SHA-256 | VirusTotal |
-|--------|---------|-----------|
-| `linux-amd64` | `8e12bb2d6ead7f20a6d3...` | [0/72 ✅](https://www.virustotal.com/gui/file/8e12bb2d6ead7f20a6d3bf2be1e51f978c38acce810f0734f510d134b039d152/detection) |
-| `linux-arm64` | `10f7136bfbf3950c6b2a...` | [0/72 ✅](https://www.virustotal.com/gui/file/10f7136bfbf3950c6b2a1a950bbf85e88b97ee55ab00b4dfbc2a5e9c2ede8672/detection) |
-| `darwin-arm64` | `7062a7408906344bf4f8...` | [0/72 ✅](https://www.virustotal.com/gui/file/7062a7408906344bf4f835e9580048af85d12dd2b7cec0edf869df93ad9a0592/detection) |
-| `darwin-amd64` | `28c6d640e1a0ac7bfcab...` | [0/72 ✅](https://www.virustotal.com/gui/file/28c6d640e1a0ac7bfcab5094c2186eced5264a20dcdffcb4455a1b28c5df2171/detection) |
-| `windows-amd64` | `9c3ddcf78368fd4fa891...` | [0/72 ✅](https://www.virustotal.com/gui/file/9c3ddcf78368fd4fa89156a553641bf1e03640b4fb6dd29a12c84aa5bc98cd86/detection) |
-
-Scan links for every release are also included in the GitHub Release notes automatically.
+Upstream's release-signing and VirusTotal process covers the upstream MCP binaries, not this fork. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
