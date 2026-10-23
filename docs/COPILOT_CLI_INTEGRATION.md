@@ -12,19 +12,19 @@ This fork works with GitHub Copilot by **running commands**. It does not registe
 
 ## 1. One-time setup
 
-1. Build the binary and link it into the project. Nothing is copied. The simplest way is to run
+1. Build the binary and copy it into the project (git-ignored; nothing is installed globally). The simplest way is to run
    `/path/to/codebase-memory-cli/scripts/installer-wizard.sh` from the project, which covers steps 1–3.
    By hand:
 
    ```text
    scripts/build.sh --cli-only
    cd /path/to/your/repo
-   mkdir -p .cbm && ln -sfn /path/to/codebase-memory-cli/build/c/codebase-memory-cli .cbm/codebase-memory-cli
+   mkdir -p .cbm && cp /path/to/codebase-memory-cli/build/c/codebase-memory-cli .cbm/codebase-memory-cli
    echo '.cbm/' >> .gitignore
    ```
 
    Copilot then calls `./.cbm/codebase-memory-cli` from the project root, so `PATH`, shell hooks and the
-   IDE make no difference. The wizard also points the generated Copilot files at the link (see the README's
+   IDE make no difference. The wizard also points the generated Copilot files at it, adds auto-approve, a Code Graph agent, AGENTS.md and auto re-indexing (see the README's
    Steps 3 and 5). In the commands below, use `./.cbm/codebase-memory-cli` in place of `codebase-memory-cli`.
 
 2. Index the repository you are working in:

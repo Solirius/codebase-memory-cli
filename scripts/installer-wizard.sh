@@ -3,7 +3,7 @@
 # GitHub Copilot. Nothing is copied or installed globally.
 #
 #   scripts/installer-wizard.sh [--project DIR] [--with-ui|--no-ui]
-#                               [--path-mode link|vscode|direnv|both|none]
+#                               [--path-mode copy|link|vscode|direnv|both|none]
 #                               [--rebuild|--skip-build] [--yes] [--dry-run]
 #
 # The wizard detects sensible defaults, asks only what needs your input, shows
@@ -17,7 +17,7 @@ BIN="$BIN_DIR/codebase-memory-cli"
 
 PROJECT=""
 WITH_UI=""        # 1 / 0 / "" (ask)
-PATH_MODE=""      # link / vscode / direnv / both / none / "" (ask)
+PATH_MODE=""      # copy / link / vscode / direnv / both / none / "" (ask)
 BUILD=""          # build / keep / "" (ask)
 WRITE_COPILOT=1
 ASSUME_YES=0
@@ -42,7 +42,7 @@ while [ $# -gt 0 ]; do
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
-case "$PATH_MODE" in ""|link|vscode|direnv|both|none) ;; *) echo "invalid --path-mode: $PATH_MODE" >&2; exit 2 ;; esac
+case "$PATH_MODE" in ""|copy|link|vscode|direnv|both|none) ;; *) echo "invalid --path-mode: $PATH_MODE" >&2; exit 2 ;; esac
 [ -t 0 ] || ASSUME_YES=1
 
 if [ -t 1 ]; then
@@ -117,7 +117,7 @@ pause() {
 printf '\n%s🧭 codebase-memory-cli — installer wizard%s\n' "$B" "$N" >&2
 info "This wizard sets up codebase-memory-cli for GitHub Copilot in ONE project:"
 info "  • builds the binary in this repository (build/c/)"
-info "  • makes it reachable from that project only (a git-ignored link by default) — nothing is copied or installed globally"
+info "  • puts a copy of the binary in that project (.cbm/, git-ignored) — nothing is installed globally"
 info "  • indexes the project and writes the Copilot instruction/prompt files"
 info "  • proves that everything works"
 info "Press Enter to accept the default shown in [brackets]."
@@ -207,27 +207,38 @@ fi
 if [ -z "$PATH_MODE" ]; then
     say ""
     why "Copilot must be able to run the binary from inside this project."
-    why "The most reliable way is a project-local link that Copilot calls by a fixed relative path"
-    why "(./.cbm/codebase-memory-cli), so it never depends on PATH or shell setup."
-    PATH_MODE=$(choose "How should Copilot find the binary?" link \
-        link   "Project-local link .cbm/codebase-memory-cli (recommended — works in every Copilot surface)" \
+    why "The most reliable way is a binary inside the project that Copilot calls by a fixed relative"
+    why "path (./.cbm/codebase-memory-cli), so it never depends on PATH or shell setup."
+    PATH_MODE=$(choose "How should Copilot find the binary?" copy \
+        copy   "Copy into .cbm/ (recommended — explicit, fixed version, works even if this repo moves)" \
+        link   "Symlink in .cbm/ — follows every rebuild of this repo automatically, no extra disk" \
         vscode "VS Code workspace PATH setting (.vscode/settings.json) — VS Code only" \
         direnv "direnv (.envrc) — needs direnv installed and hooked into your shell" \
         both   "VS Code setting and direnv" \
         none   "Skip — I'll handle PATH myself")
 fi
-if [ "$PATH_MODE" = link ]; then CMD="./.cbm/codebase-memory-cli"; else CMD="codebase-memory-cli"; fi
+case "$PATH_MODE" in copy|link) LOCAL=1 ;; *) LOCAL=0 ;; esac
+if [ "$LOCAL" -eq 1 ]; then CMD="./.cbm/codebase-memory-cli"; else CMD="codebase-memory-cli"; fi
 
 # Copilot files
 say ""
 why "Copilot learns about the CLI from .github/copilot-instructions.md and prompt files."
 confirm "Write the Copilot integration files into the project?" y && WRITE_COPILOT=1 || WRITE_COPILOT=0
+BOOST=0
+if [ "$WRITE_COPILOT" -eq 1 ]; then
+    say ""
+    why "To make Copilot use the graph reliably, I can also: auto-approve its commands in VS Code,"
+    why "write the project name and firm rules into the instructions, add a 'Code Graph' agent and"
+    why "AGENTS.md (Copilot CLI / coding agent), and re-index on folder open and after git pulls."
+    confirm "Apply these reliability boosters?" y && BOOST=1
+fi
 
 # ── 3. Plan ─────────────────────────────────────────────────────────────────
 step "Step 3/7 · Review the plan"
 label_path() {
     case "$1" in
-        link)   echo "link .cbm/codebase-memory-cli -> build/c binary (git-ignored); Copilot calls ./.cbm/codebase-memory-cli" ;;
+        copy)   echo "copy the binary to .cbm/codebase-memory-cli (git-ignored); Copilot calls ./.cbm/codebase-memory-cli" ;;
+        link)   echo "symlink .cbm/codebase-memory-cli -> build/c binary (git-ignored); Copilot calls ./.cbm/codebase-memory-cli" ;;
         vscode) echo "add build/c to PATH in .vscode/settings.json" ;;
         direnv) echo "add 'PATH_add …/build/c' to .envrc" ;;
         both)   echo ".vscode/settings.json and .envrc" ;;
@@ -244,6 +255,7 @@ info "Binary ......... $plan_build"
 info "Access ......... $(label_path "$PATH_MODE")"
 info "Index .......... index the project into ~/.cache/codebase-memory-mcp/"
 info "Copilot files .. $([ "$WRITE_COPILOT" -eq 1 ] && echo 'write .github/copilot-instructions.md + prompts' || echo 'skip')"
+[ "$BOOST" -eq 1 ] && info "Boosters ....... auto-approve, project name + rules, Code Graph agent, AGENTS.md, auto re-index"
 say ""
 confirm "Go ahead with this plan?" y || { info "Nothing was changed. Bye!"; exit 0; }
 
@@ -265,31 +277,62 @@ fi
 
 # ── 5. PATH ─────────────────────────────────────────────────────────────────
 step "Step 5/7 · Making it available in the project"
-setup_link() {
-    local dir="$PROJECT/.cbm" link="$PROJECT/.cbm/codebase-memory-cli"
-    why "A symlink inside the project points at the binary built here — nothing is copied."
+setup_local() {
+    local dir="$PROJECT/.cbm" dest="$PROJECT/.cbm/codebase-memory-cli"
+    if [ "$PATH_MODE" = copy ]; then
+        why "The binary is copied into the project: a fixed, self-contained version you update on purpose."
+    else
+        why "A symlink inside the project points at the binary built here, so rebuilds apply immediately."
+    fi
     if [ "$DRY_RUN" -eq 1 ]; then
-        info "would create $link -> $BIN"
+        if [ "$PATH_MODE" = copy ]; then info "would copy $BIN -> $dest"; else info "would create $dest -> $BIN"; fi
         info "would add '.cbm/' to $PROJECT/.gitignore"
         return
     fi
-    if [ -L "$link" ] && [ "$(readlink "$link")" = "$BIN" ]; then
-        ok ".cbm/codebase-memory-cli already links to $BIN"
+    if [ "$PATH_MODE" = copy ]; then
+        if [ -f "$dest" ] && [ ! -L "$dest" ] && cmp -s "$BIN" "$dest"; then
+            ok ".cbm/codebase-memory-cli is already the latest build"
+        else
+            if [ -L "$dest" ]; then
+                info "Found a symlink at .cbm/codebase-memory-cli; it will be replaced by a copy."
+            elif [ -f "$dest" ]; then
+                info "The copy in .cbm/ differs from the latest build in $BIN_DIR."
+                confirm "Replace it with the latest build?" y || { warn "Kept the existing copy."; return 0; }
+            fi
+            mkdir -p "$dir"
+            rm -f "$dest"
+            cp "$BIN" "$dest.tmp" && chmod 755 "$dest.tmp" && mv "$dest.tmp" "$dest"
+            {
+                echo "source: $BIN"
+                echo "copied: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                echo "sha256: $(shasum -a 256 "$dest" 2>/dev/null | cut -d' ' -f1)"
+                echo "update: re-run $REPO_ROOT/scripts/installer-wizard.sh after rebuilding"
+            } > "$dir/SOURCE"
+            ok "copied the binary to .cbm/codebase-memory-cli ($(du -h "$dest" | cut -f1 | tr -d ' '); provenance in .cbm/SOURCE)"
+            CHANGES+=("binary copy $dest (undo: rm -r \"$dir\")")
+        fi
     else
-        [ -e "$link" ] && [ ! -L "$link" ] && die "$link exists and is not a symlink; move it away and re-run."
-        mkdir -p "$dir"
-        ln -sfn "$BIN" "$link"
-        ok "linked .cbm/codebase-memory-cli -> $BIN"
-        CHANGES+=("symlink $link (undo: rm -r $dir)")
+        if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$BIN" ]; then
+            ok ".cbm/codebase-memory-cli already links to $BIN"
+        else
+            if [ -f "$dest" ] && [ ! -L "$dest" ]; then
+                confirm "Replace the copied binary in .cbm/ with a symlink?" y || { warn "Kept the existing copy."; return 0; }
+            fi
+            mkdir -p "$dir"
+            rm -f "$dir/SOURCE"
+            ln -sfn "$BIN" "$dest"
+            ok "linked .cbm/codebase-memory-cli -> $BIN"
+            CHANGES+=("symlink $dest (undo: rm -r \"$dir\")")
+        fi
     fi
-    "$link" --version >/dev/null 2>&1 || die "the link does not run: $link"
-    ok "the link runs: ./.cbm/codebase-memory-cli --version"
+    "$dest" --version >/dev/null 2>&1 || die "it does not run: $dest"
+    ok "it runs: ./.cbm/codebase-memory-cli --version"
     local gi="$PROJECT/.gitignore"
     if [ -f "$gi" ] && grep -qxE '/?\.cbm/?' "$gi"; then
         ok ".cbm/ is already git-ignored"
     else
         printf '%s\n' '.cbm/' >> "$gi"
-        ok "added '.cbm/' to .gitignore (the link is machine-specific)"
+        ok "added '.cbm/' to .gitignore (the binary is machine-specific and large)"
         CHANGES+=("'.cbm/' line in $gi")
     fi
 }
@@ -350,7 +393,7 @@ setup_direnv() {
     fi
 }
 case "$PATH_MODE" in
-    link)   setup_link ;;
+    copy|link) setup_local ;;
     vscode) setup_vscode ;;
     direnv) setup_direnv ;;
     both)   setup_vscode; setup_direnv ;;
@@ -375,7 +418,235 @@ else
     CHANGES+=("index for $PROJECT in ~/.cache/codebase-memory-mcp/")
 fi
 
-# Make every generated command call the project-local link instead of relying on PATH.
+# Tune the generated files so Copilot gets complete answers: trace_path excludes
+# tests by default, and references to classes/types are mostly USAGE edges, not CALLS.
+tune_copilot_files() {
+    local f n=0 ci="$PROJECT/.github/copilot-instructions.md" t="$PROJECT/.vscode/tasks.json"
+    for f in "$ci" "$PROJECT"/.github/prompts/cbm-*.prompt.md; do
+        [ -f "$f" ] || continue
+        sed -i.bak -e '/trace_path/{/--include-tests/!s/--direction inbound/--direction inbound --include-tests true/;}' "$f" && rm -f "$f.bak"
+        n=$((n + 1))
+    done
+    local wc="$PROJECT/.github/prompts/cbm-who-calls.prompt.md"
+    if [ -f "$wc" ] && ! grep -q 'cbm-wizard:tuning' "$wc"; then
+        cat >> "$wc" <<EOF
+<!-- cbm-wizard:tuning -->
+If the symbol is a class, record, interface or other type, also run
+\`$CMD cli trace_path '{"project":"<name>","function_name":"<symbol>","direction":"inbound","depth":1,"include_tests":true,"edge_types":["CALLS","USAGE"]}'\`
+because most references to types (constructors, generic arguments, parameter types) are USAGE edges.
+Always list test callers separately (\`test: true\`).
+EOF
+    fi
+    if [ -f "$ci" ] && ! grep -q 'cbm-wizard:tuning' "$ci"; then
+        local block
+        block=$(cat <<EOF
+<!-- cbm-wizard:tuning -->
+### Getting complete results (tests and type references)
+
+- **Always pass \`--include-tests true\` to \`trace_path\`.** Test callers are excluded by default.
+- **Classes, records, interfaces and other types:** most references are \`USAGE\` edges
+  (\`new X(...)\`, generic arguments, parameter and return types), not \`CALLS\`. Pass the
+  edge types as raw JSON (the \`--edge-types\` flag form is unreliable):
+  \`$CMD cli trace_path '{"project":"<name>","function_name":"X","direction":"inbound","depth":1,"include_tests":true,"edge_types":["CALLS","USAGE"]}'\`
+- **Cross-check with Cypher** when results look incomplete:
+  \`$CMD cli query_graph --project <name> --query "MATCH (a)-[r:CALLS|USAGE]->(b) WHERE b.name = 'X' RETURN type(r), a.name, a.file_path" --format json\`
+- Fall back to text search only if the graph returns nothing, and say that you did.
+EOF
+)
+        python3 - "$ci" "$block" <<'PY2'
+import sys
+p, block = sys.argv[1], sys.argv[2]
+s = open(p).read()
+end = "<!-- codebase-memory-cli:end -->"
+s = s.replace(end, block + "\n" + end, 1) if end in s else s + "\n" + block + "\n"
+open(p, "w").write(s)
+PY2
+    fi
+    if [ -f "$t" ] && grep -q 'codebase-memory-cli:managed' "$t" && ! grep -q '"--include-tests"' "$t"; then
+        sed -i.bak -e 's/"--direction", "inbound",/"--direction", "inbound", "--include-tests", "true",/' "$t" && rm -f "$t.bak"
+        n=$((n + 1))
+    fi
+    ok "tuned $n files: test callers included, class/type references (USAGE) covered"
+}
+
+# Reliability boosters: remove every reason for Copilot not to call the CLI.
+boost_copilot() {
+    local ci="$PROJECT/.github/copilot-instructions.md" f
+    local task_cmd="codebase-memory-cli" approve='/^codebase-memory-cli cli /'
+    if [ "$LOCAL" -eq 1 ]; then
+        task_cmd='${workspaceFolder}/.cbm/codebase-memory-cli'
+        approve='/^\.\/\.cbm\/codebase-memory-cli cli /'
+    fi
+
+    # 5. Concrete project name, so Copilot can skip the list_projects step.
+    if [ -n "$project_name" ]; then
+        for f in "$ci" "$PROJECT"/.github/prompts/cbm-*.prompt.md; do
+            [ -f "$f" ] || continue
+            sed -i.bak -e "s#--project <name>#--project $project_name#g" \
+                -e "s#\"project\":\"<name>\"#\"project\":\"$project_name\"#g" "$f" && rm -f "$f.bak"
+        done
+        ok "wrote the project name into the instructions and prompts"
+    fi
+
+    # 6. Firm, trigger-based rules at the top of the managed section.
+    if [ -f "$ci" ] && ! grep -q 'cbm-wizard:rules' "$ci"; then
+        python3 - "$ci" "$CMD" "$project_name" <<'PY'
+import sys
+p, cmd, name = sys.argv[1:4]
+s = open(p).read()
+rules = f"""<!-- cbm-wizard:rules -->
+### Rules (follow these every time)
+
+- **For any question about callers, usages, references, definitions, dependencies, impact or
+  architecture, you MUST run `{cmd}` first, before grep or text search,** and quote the command you ran.
+- This repository's graph project name is `{name}`. If that name is not listed by
+  `{cmd} cli list_projects --format json`, index first:
+  `{cmd} cli --quiet index_repository --repo-path "$PWD"`.
+- If you have edited code during this session, re-index before answering structural questions.
+- Use grep/text search only to confirm or extend graph results, or when the graph returns nothing (say so).
+"""
+head = "## Code graph: codebase-memory-cli (terminal commands, no server)\n"
+s = s.replace(head, head + "\n" + rules, 1) if head in s else s + "\n" + rules
+open(p, "w").write(s)
+PY
+        ok "added firm usage rules to copilot-instructions.md"
+    fi
+
+    # 4 + 9a. VS Code: auto-approve the command and allow the folder-open re-index task.
+    local vs="$PROJECT/.vscode/settings.json"
+    mkdir -p "$PROJECT/.vscode"
+    if python3 - "$vs" "$approve" <<'PY'
+import json, os, sys
+path, pattern = sys.argv[1], sys.argv[2]
+data = {}
+if os.path.exists(path) and open(path).read().strip():
+    try:
+        data = json.load(open(path))
+    except ValueError:
+        sys.exit(3)
+data.setdefault("chat.tools.terminal.autoApprove", {})[pattern] = True
+data["task.allowAutomaticTasks"] = "on"
+with open(path, "w") as fh:
+    json.dump(data, fh, indent=2); fh.write("\n")
+PY
+    then
+        ok "VS Code: Copilot may run '$CMD cli …' without asking; folder-open tasks allowed"
+        CHANGES+=("auto-approve + task.allowAutomaticTasks in $vs")
+    else
+        warn "$vs has comments, so I left it untouched. Please add:"
+        info "  \"chat.tools.terminal.autoApprove\": { \"$approve\": true },"
+        info "  \"task.allowAutomaticTasks\": \"on\""
+    fi
+
+    # 9b. Re-index whenever the folder is opened in VS Code.
+    local t="$PROJECT/.vscode/tasks.json"
+    if [ -f "$t" ] && grep -q 'codebase-memory-cli:managed' "$t" && ! grep -q 'cbm: re-index on folder open' "$t"; then
+        python3 - "$t" "$task_cmd" <<'PY'
+import sys
+p, cmd = sys.argv[1], sys.argv[2]
+s = open(p).read()
+task = f"""    {{
+      "label": "cbm: re-index on folder open",
+      "type": "process",
+      "command": "{cmd}",
+      "args": ["cli", "--quiet", "index_repository", "--repo-path", "${{workspaceFolder}}"],
+      "runOptions": {{ "runOn": "folderOpen" }},
+      "presentation": {{ "reveal": "never", "panel": "dedicated" }},
+      "problemMatcher": []
+    }},
+"""
+anchor = '"tasks": [\n'
+if anchor in s:
+    s = s.replace(anchor, anchor + task, 1)
+    open(p, "w").write(s)
+PY
+        ok "VS Code re-indexes the project automatically when the folder opens"
+    fi
+
+    # 9c. Re-index after pulls, checkouts and commits (background, never blocks git).
+    local hooks
+    if hooks=$(cd "$PROJECT" && git rev-parse --git-path hooks 2>/dev/null); then
+        case "$hooks" in /*) ;; *) hooks="$PROJECT/$hooks" ;; esac
+        mkdir -p "$hooks"
+        local h hk n=0
+        for h in post-merge post-checkout post-commit; do
+            hk="$hooks/$h"
+            if [ -f "$hk" ] && ! grep -q 'cbm-wizard:hook' "$hk"; then
+                warn "kept your existing $h hook; add a re-index line to it yourself if you want"
+                continue
+            fi
+            cat > "$hk" <<EOF
+#!/bin/sh
+# cbm-wizard:hook — keep the codebase-memory-cli graph fresh (runs in the background).
+root=\$(git rev-parse --show-toplevel) || exit 0
+bin="\$root/.cbm/codebase-memory-cli"
+[ -x "\$bin" ] || bin=\$(command -v codebase-memory-cli) || exit 0
+( "\$bin" cli --quiet index_repository --repo-path "\$root" >/dev/null 2>&1 & )
+exit 0
+EOF
+            chmod 755 "$hk"; n=$((n + 1))
+        done
+        [ "$n" -gt 0 ] && ok "git re-indexes in the background after merge/checkout/commit" &&
+            CHANGES+=("git hooks post-merge/post-checkout/post-commit in $hooks (undo: delete files containing cbm-wizard:hook)")
+    else
+        info "not a git repository: skipped the re-index git hooks"
+    fi
+
+    # 7. A dedicated Copilot agent whose whole job is to answer from the graph.
+    local ag="$PROJECT/.github/agents/code-graph.agent.md"
+    if [ ! -f "$ag" ] || grep -q 'cbm-wizard:managed' "$ag"; then
+        mkdir -p "$PROJECT/.github/agents"
+        cat > "$ag" <<EOF
+---
+description: "Answer structural code questions from the codebase-memory-cli graph (callers, usages, architecture, impact)"
+---
+<!-- cbm-wizard:managed — generated by installer-wizard.sh; delete this line to edit freely -->
+You are the Code Graph agent for this repository. Answer every question from the structural
+code graph by running \`$CMD\` in the terminal, from the repository root.
+
+1. Project name: \`$project_name\`. If it is missing from \`$CMD cli list_projects --format json\`,
+   run \`$CMD cli --quiet index_repository --repo-path "\$PWD"\` first.
+2. Callers of a function: \`$CMD cli trace_path --project $project_name --function-name X --direction inbound --include-tests true --format json\`
+3. References to a class/type: \`$CMD cli trace_path '{"project":"$project_name","function_name":"X","direction":"inbound","depth":1,"include_tests":true,"edge_types":["CALLS","USAGE"]}'\`
+4. Find symbols: \`$CMD cli search_graph --project $project_name --name-pattern 'X' --format json\`;
+   source: \`$CMD cli get_code_snippet --project $project_name --qualified-name <qn> --format json\`;
+   overview: \`$CMD cli get_architecture --project $project_name --format json\`.
+5. Always show the command you ran, list test callers separately, and only use text search to
+   confirm graph results or when the graph returns nothing (say so).
+EOF
+        ok "added the 'Code Graph' Copilot agent (.github/agents/code-graph.agent.md)"
+        CHANGES+=("Copilot agent $ag")
+    else
+        info "kept your own .github/agents/code-graph.agent.md"
+    fi
+
+    # 8. AGENTS.md for the Copilot CLI and coding agent (managed section).
+    local am="$PROJECT/AGENTS.md"
+    local section
+    section=$(cat <<EOF
+<!-- cbm-wizard:agents:begin -->
+## Code graph (codebase-memory-cli)
+
+For questions about callers, usages, definitions, dependencies, impact or architecture, run
+\`$CMD\` from the repository root **before** text search, and quote the command.
+Project name: \`$project_name\`. Full command reference: \`.github/copilot-instructions.md\`.
+Always pass \`--include-tests true\` to \`trace_path\`; for classes/types include \`USAGE\` edges.
+<!-- cbm-wizard:agents:end -->
+EOF
+)
+    python3 - "$am" "$section" <<'PY'
+import os, re, sys
+p, sec = sys.argv[1], sys.argv[2]
+s = open(p).read() if os.path.exists(p) else ""
+pat = re.compile(r"<!-- cbm-wizard:agents:begin -->.*?<!-- cbm-wizard:agents:end -->", re.S)
+s = pat.sub(lambda m: sec, s) if pat.search(s) else (s.rstrip() + "\n\n" if s.strip() else "") + sec + "\n"
+open(p, "w").write(s)
+PY
+    ok "AGENTS.md tells the Copilot CLI / coding agent to use the graph"
+    CHANGES+=("managed section in $am")
+}
+
+# Make every generated command call the project-local binary instead of relying on PATH.
 point_copilot_at_link() {
     local f n=0
     for f in "$PROJECT"/.github/copilot-instructions.md "$PROJECT"/.github/prompts/cbm-*.prompt.md; do
@@ -388,7 +659,7 @@ point_copilot_at_link() {
         sed -i.bak -e '/^## Code graph: codebase-memory-cli/a\
 \
 **Always run the binary as `./.cbm/codebase-memory-cli` from the repository root** (a\
-project-local link; do not rely on `codebase-memory-cli` being on PATH).' "$ci" && rm -f "$ci.bak"
+project-local binary; do not rely on `codebase-memory-cli` being on PATH).' "$ci" && rm -f "$ci.bak"
     fi
     local t="$PROJECT/.vscode/tasks.json"
     if [ -f "$t" ] && grep -q 'codebase-memory-cli:managed' "$t"; then
@@ -411,7 +682,9 @@ for f in json.load(sys.stdin)["files"]: print("     • %-45s %s" % (f["path"], 
         if confirm "Write them now?" y; then
             "$BIN" install --project "$PROJECT" >/dev/null || die "install failed"
             ok "Copilot integration written"
-            [ "$PATH_MODE" = link ] && point_copilot_at_link
+            [ "$LOCAL" -eq 1 ] && point_copilot_at_link
+            tune_copilot_files
+            [ "$BOOST" -eq 1 ] && boost_copilot
             CHANGES+=("Copilot files in $PROJECT/.github (undo: $CMD uninstall --copilot)")
         else
             warn "Skipped. Run 'codebase-memory-cli install' in the project later."
@@ -430,6 +703,23 @@ else
         --query 'MATCH (f)-[:CALLS]->(g) RETURN count(*) AS calls' --format json 2>/dev/null || true)
     calls=$(printf '%s' "$callers" | sed -n 's/.*"rows":\[\["\{0,1\}\([0-9]*\).*/\1/p')
     [ -n "$calls" ] && ok "sample graph query answered: $calls call relationships found"
+    tq=$("$BIN" cli --quiet query_graph --project "$project_name" --query \
+        "MATCH (a)-[r:CALLS|USAGE]->(b) WHERE a.file_path CONTAINS 'test' OR a.file_path CONTAINS 'Test' OR a.file_path CONTAINS 'spec' RETURN count(r) AS n" \
+        --format json 2>/dev/null || true)
+    tests=$(printf '%s' "$tq" | sed -n 's/.*"rows":\[\["\{0,1\}\([0-9]*\).*/\1/p')
+    if [ -n "$tests" ] && [ "$tests" -gt 0 ]; then
+        ok "tests are in the graph: $tests call/usage edges come from test files"
+    else
+        info "no call/usage edges from test files found (fine if the project has no tests)"
+    fi
+    if [ -f "$PROJECT/.github/copilot-instructions.md" ] && grep -q 'include-tests true' "$PROJECT/.github/copilot-instructions.md"; then
+        ok "Copilot is told to include tests and USAGE references"
+    fi
+    if [ "$BOOST" -eq 1 ]; then
+        grep -q 'chat.tools.terminal.autoApprove' "$PROJECT/.vscode/settings.json" 2>/dev/null &&
+            ok "Copilot can run the graph commands without approval prompts"
+        [ -f "$PROJECT/.github/agents/code-graph.agent.md" ] && ok "'Code Graph' agent is available in Copilot Chat"
+    fi
     if ps -ax -o command= 2>/dev/null | grep -v grep | grep -qF "$BIN"; then
         warn "a codebase-memory-cli process is still running"
     else
@@ -438,7 +728,7 @@ else
     if [ -f "$PROJECT/.github/copilot-instructions.md" ] &&
         grep -q 'codebase-memory-cli:begin' "$PROJECT/.github/copilot-instructions.md"; then
         ok "Copilot instructions are in place"
-        if [ "$PATH_MODE" = link ]; then
+        if [ "$LOCAL" -eq 1 ]; then
             if (cd "$PROJECT" && ./.cbm/codebase-memory-cli cli --quiet list_projects --format json) | grep -qF "\"$project_name\""; then
                 ok "the exact command Copilot will run works: ./.cbm/codebase-memory-cli cli list_projects"
             else
@@ -459,17 +749,19 @@ if [ "${#CHANGES[@]}" -gt 0 ]; then
 fi
 info "Finish in your IDE:"
 info "  1. Open $PROJECT and reload the window (VS Code: 'Developer: Reload Window')."
-if [ "$PATH_MODE" = link ]; then
+if [ "$LOCAL" -eq 1 ]; then
     info "  2. In a terminal at the project root, run:  ./.cbm/codebase-memory-cli --version"
 else
     info "  2. In a NEW terminal there, run:  command -v codebase-memory-cli"
     info "     It should print: $BIN"
 fi
+[ "$BOOST" -eq 1 ] && info "     Pick the 'Code Graph' agent in the Copilot Chat agent picker for graph-first answers."
 info "  3. In Copilot Chat (Agent mode) ask: \"Who calls <someFunction>? Use codebase-memory-cli.\""
 info "     You'll see Copilot run '$CMD cli trace_path …' and answer from its output."
 say ""
 info "Re-index after big changes:  $CMD cli --quiet index_repository --repo-path \"\$PWD\""
-if [ "$PATH_MODE" = link ]; then
-    info "Teammates: run this wizard once to create their own .cbm link (it is git-ignored)."
-    info "Re-run this wizard (not plain 'install') to refresh the Copilot files, so they keep using the link."
+if [ "$LOCAL" -eq 1 ]; then
+    [ "$PATH_MODE" = copy ] && info "After rebuilding this repo, re-run the wizard to update the copy in .cbm/."
+    info "Teammates: run this wizard once to get their own .cbm/ binary (it is git-ignored)."
+    info "Re-run this wizard (not plain 'install') to refresh the Copilot files, so they keep using ./.cbm/."
 fi

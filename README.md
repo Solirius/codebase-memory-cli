@@ -87,20 +87,22 @@ build/c/codebase-memory-cli --version
 build/c/codebase-memory-cli --help       # lists: cli, install, uninstall, config (and ui with --with-ui)
 ```
 
-### Step 3 — Make it available in your project (no copying, nothing global)
+### Step 3 — Make it available in your project (nothing global)
 
-Copilot must be able to run the binary **from the project where it works**. Nothing needs to be copied, and every rebuild is picked up automatically. Below, `/path/to/codebase-memory-cli` is where you cloned this repository.
+Copilot must be able to run the binary **from the project where it works**. Nothing is installed globally. Below, `/path/to/codebase-memory-cli` is where you cloned this repository.
 
-**Recommended: a project-local link.** This is what the wizard sets up. Copilot calls the binary by a fixed relative path, so it never depends on `PATH`, shell start-up files, direnv or which Copilot surface you use (VS Code, JetBrains, Visual Studio or the Copilot CLI):
+**Recommended: a copy of the binary in the project.** This is the wizard's default. Copilot calls it by a fixed relative path, `./.cbm/codebase-memory-cli`, so it never depends on `PATH`, shell start-up files, direnv or which Copilot surface you use (VS Code, JetBrains, Visual Studio or the Copilot CLI). The binary is self-contained, so the project keeps working even if this repository moves:
 
 ```bash
 cd /path/to/your/repo
 mkdir -p .cbm
-ln -sfn /path/to/codebase-memory-cli/build/c/codebase-memory-cli .cbm/codebase-memory-cli
-echo '.cbm/' >> .gitignore            # the link is machine-specific; each teammate creates their own
+cp /path/to/codebase-memory-cli/build/c/codebase-memory-cli .cbm/codebase-memory-cli
+echo '.cbm/' >> .gitignore            # about 300 MB and machine-specific: never commit it
 ```
 
-With the link, every `codebase-memory-cli` command in this guide becomes `./.cbm/codebase-memory-cli`, run from the project root. Step 5 points the Copilot files at the link.
+A copy is a fixed version: after rebuilding this repository, re-run the wizard. It detects that the copy is out of date, offers to replace it and records the source and checksum in `.cbm/SOURCE`. If you'd rather have every rebuild apply immediately, use a symlink instead (`ln -sfn …/build/c/codebase-memory-cli .cbm/codebase-memory-cli`, or `--path-mode link` in the wizard).
+
+With the binary in `.cbm/`, every `codebase-memory-cli` command in this guide becomes `./.cbm/codebase-memory-cli`, run from the project root. Step 5 points the Copilot files at it.
 
 ✅ **Proof:** `./.cbm/codebase-memory-cli --version` prints a version line from the project root.
 
@@ -164,7 +166,7 @@ This writes only:
 
 No MCP server is registered anywhere. Re-running is safe; `codebase-memory-cli uninstall --copilot` removes everything.
 
-**Using the project-local link (Step 3)?** `install` writes bare `codebase-memory-cli` commands. The wizard rewrites them to `./.cbm/codebase-memory-cli` for you. To do it by hand, run (macOS `sed`; on Linux drop the `''`):
+**Using the project-local binary (Step 3)?** `install` writes bare `codebase-memory-cli` commands. The wizard rewrites them to `./.cbm/codebase-memory-cli` for you. To do it by hand, run (macOS `sed`; on Linux drop the `''`):
 
 ```bash
 sed -i '' 's#`codebase-memory-cli cli#`./.cbm/codebase-memory-cli cli#g' .github/copilot-instructions.md .github/prompts/cbm-*.prompt.md
@@ -172,6 +174,25 @@ sed -i '' 's#"command": "codebase-memory-cli"#"command": "${workspaceFolder}/.cb
 ```
 
 A later plain `install` puts the bare name back, so re-run the wizard instead.
+
+**Complete answers, including tests.** `trace_path` leaves out test callers unless you pass `--include-tests true`, and it follows only `CALLS` edges. Most references to a class or other type (`new X(…)`, generic arguments, parameter types) are `USAGE` edges. The wizard therefore also tunes the generated files:
+- every `trace_path` gets `--include-tests true`;
+- the instructions gain a "Getting complete results" section, with a `CALLS`+`USAGE` recipe for types and a Cypher cross-check.
+
+Pass edge types as raw JSON (`trace_path '{"edge_types":["CALLS","USAGE"],…}'`), because the `--edge-types` flag form currently returns no results.
+
+**Making Copilot use it every time.** Copilot runs the CLI because its instructions tell it to; nothing forces it. The wizard's optional *reliability boosters* (on by default) remove the usual reasons it falls back to grep:
+
+| Booster | Where |
+|---|---|
+| Auto-approve `./.cbm/codebase-memory-cli cli …`, so there's no "Allow?" prompt | `.vscode/settings.json` → `chat.tools.terminal.autoApprove` |
+| The actual project name in every command, so Copilot can skip `list_projects` | `.github/copilot-instructions.md`, prompts |
+| Firm "MUST run the graph before grep" rules for structural questions | `.github/copilot-instructions.md` |
+| A **Code Graph** agent that answers only from the graph | `.github/agents/code-graph.agent.md` (pick it in Copilot Chat's agent picker) |
+| The same rules for the Copilot CLI and coding agent | `AGENTS.md` (managed section) |
+| A fresh index: on folder open, and in the background after merge, checkout and commit | `.vscode/tasks.json` (`runOn: folderOpen`, `task.allowAutomaticTasks`), `.git/hooks/post-*` |
+
+The project name in these files is derived from your local path, so commit them only if teammates use the same layout; otherwise each teammate runs the wizard. `uninstall --copilot` removes the instruction, prompt and task files. Remove the agent file, the `AGENTS.md` section, the two VS Code settings and the hooks (marked `cbm-wizard:hook`) by hand.
 
 ✅ **Proof:** `install` prints JSON with `"status":"installed"` and one `action` per file (`created`, `appended`, `updated`, `unchanged`); `git status` shows exactly those files.
 
@@ -221,7 +242,7 @@ Open <http://127.0.0.1:9749>. Stop it with Ctrl-C.
 
 | Symptom | Fix |
 |---|---|
-| `command not found: codebase-memory-cli` | Use `./.cbm/codebase-memory-cli` from the project root (Step 3 link), or re-run the wizard. If you chose a `PATH` alternative, open a new terminal and restart the IDE. |
+| `command not found: codebase-memory-cli` | Use `./.cbm/codebase-memory-cli` from the project root (Step 3), or re-run the wizard. If you chose a `PATH` alternative, open a new terminal and restart the IDE. |
 | Copilot answers without running a command | Make sure you're in **Agent** mode, reload the window, ask it explicitly to "use codebase-memory-cli". |
 | `project not found` error | Use the exact `name` from `list_projects`, or re-run Step 4. |
 | Answers look stale | Re-run `index_repository` after large changes. |
@@ -281,7 +302,7 @@ The installed Copilot instructions tell the agent to do the same when results lo
 
 ### Updating
 
-There is no `update` command (it reports `update is not available in the CLI-only build`) and the binary never checks for new versions. To update, pull this repository and rebuild. Projects linking to `build/c` (Step 3) pick up the new binary immediately:
+There is no `update` command (it reports `update is not available in the CLI-only build`) and the binary never checks for new versions. To update, pull this repository and rebuild, then re-run the wizard in each project to refresh its `.cbm/` copy. Symlinked projects pick up the new binary immediately:
 
 ```bash
 git pull
@@ -292,7 +313,7 @@ scripts/build.sh --cli-only
 
 ```bash
 codebase-memory-cli uninstall --copilot --project /path/to/repo   # remove the Copilot files from a repo (add --dry-run to preview)
-rm -r /path/to/repo/.cbm                                          # remove the project-local link (or the build/c PATH entry, if you used one)
+rm -r /path/to/repo/.cbm                                          # remove the project-local binary (or the build/c PATH entry, if you used one)
 rm -rf ~/.cache/codebase-memory-mcp/                              # optional: delete all indexes
 ```
 
@@ -448,7 +469,7 @@ scripts/build.sh --cli-only --with-ui    # CLI + loopback graph UI
 # Binary at: build/c/codebase-memory-cli
 ```
 
-Then make it reachable from each project where Copilot should use it: run `scripts/installer-wizard.sh`, or create the git-ignored `.cbm/codebase-memory-cli` link by hand. No copy is needed; see [Step 3](#step-3--make-it-available-in-your-project-no-copying-nothing-global).
+Then make it reachable from each project where Copilot should use it: run `scripts/installer-wizard.sh`, or copy the binary to the git-ignored `.cbm/codebase-memory-cli` by hand; see [Step 3](#step-3--make-it-available-in-your-project-nothing-global).
 
 Run the test suite:
 
@@ -642,7 +663,7 @@ SQLite databases stored at `~/.cache/codebase-memory-mcp/` (the directory name i
 
 | Problem | Fix |
 |---------|-----|
-| `command not found: codebase-memory-cli` | Run it as `./.cbm/codebase-memory-cli` from the project root; create the link with `scripts/installer-wizard.sh` or by hand ([Step 3](#step-3--make-it-available-in-your-project-no-copying-nothing-global)). |
+| `command not found: codebase-memory-cli` | Run it as `./.cbm/codebase-memory-cli` from the project root; set it up with `scripts/installer-wizard.sh` or by hand ([Step 3](#step-3--make-it-available-in-your-project-nothing-global)). |
 | Copilot answers without running `codebase-memory-cli` | Use Copilot Chat **Agent** mode, run `codebase-memory-cli install` in the repo, reload the window, and ask it explicitly to use codebase-memory-cli. |
 | `index_repository` fails | Pass an absolute path: `--repo-path "$PWD"`. Check `CBM_ALLOWED_ROOT` if set. |
 | `trace_path` returns 0 results | Find the exact name first: `cli search_graph --project <name> --name-pattern '.*Partial.*'`. |
